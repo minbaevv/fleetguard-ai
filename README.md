@@ -83,13 +83,18 @@ uvicorn app.main:app --reload --port 8000
 | POST | `/api/v1/auth/logout` | очищает cookie |
 | GET | `/api/v1/auth/me` | текущий пользователь и организация |
 | POST | `/api/v1/users` | только admin: создать менеджера или водителя |
+| GET | `/api/v1/vehicles?search=` | список машин организации, поиск по номеру и модели |
+| POST | `/api/v1/vehicles` | admin/manager: добавить машину |
+| GET | `/api/v1/vehicles/{id}` | карточка машины |
+| PATCH | `/api/v1/vehicles/{id}` | admin/manager: изменить машину |
+| DELETE | `/api/v1/vehicles/{id}` | admin/manager: удалить машину без истории |
 
 ## Статус
 
 - [x] Д1. Структура репозитория, Docker Compose (postgres, redis, minio), `/health`, README
 - [x] Д2. Модели БД и Alembic
 - [x] Д3. Авторизация и организации
-- [ ] Д4. CRUD машин
+- [x] Д4. CRUD машин
 - [ ] Д5. Скелет фронтенда
 - [ ] Д6. CI
 

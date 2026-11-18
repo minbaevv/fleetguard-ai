@@ -48,3 +48,15 @@ def require_admin(user: CurrentUser) -> User:
 
 
 AdminUser = Annotated[User, Depends(require_admin)]
+
+
+def require_roles(*allowed: UserRole):
+    def _dependency(user: CurrentUser) -> User:
+        if user.role not in allowed:
+            raise ApiError(403, "forbidden", "Недостаточно прав")
+        return user
+
+    return _dependency
+
+
+ManagerUser = Annotated[User, Depends(require_roles(UserRole.admin, UserRole.manager))]
