@@ -74,7 +74,7 @@ uvicorn app.main:app --reload --port 8000
 ## Статус
 
 - [x] Д1. Структура репозитория, Docker Compose (postgres, redis, minio), `/health`, README
-- [ ] Д2. Модели БД и Alembic
+- [x] Д2. Модели БД и Alembic
 - [ ] Д3. Авторизация и организации
 - [ ] Д4. CRUD машин
 - [ ] Д5. Скелет фронтенда
