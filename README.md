@@ -103,6 +103,13 @@ backend должен быть запущен. Подробности — в [`fr
 | PATCH | `/api/v1/vehicles/{id}` | admin/manager: изменить машину |
 | DELETE | `/api/v1/vehicles/{id}` | admin/manager: удалить машину без истории |
 
+## CI
+
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) запускается на каждый push и pull request:
+
+- **backend** (Python 3.12): `ruff check`, `ruff format --check`, `pytest`;
+- **frontend** (Node 22): `npm ci`, `npm run lint`, `npm run build`.
+
 ## Статус
 
 - [x] Д1. Структура репозитория, Docker Compose (postgres, redis, minio), `/health`, README
@@ -110,7 +117,8 @@ backend должен быть запущен. Подробности — в [`fr
 - [x] Д3. Авторизация и организации
 - [x] Д4. CRUD машин
 - [x] Д5. Скелет фронтенда: вход, регистрация организации, список машин с поиском и добавлением
-- [ ] Д6. CI
+- [x] Д6. CI: GitHub Actions — ruff, ruff format, pytest, `npm run lint` и `npm run build`
+  (зелёный прогон появится после первого push в GitHub)
 
 ## Безопасность
 
