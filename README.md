@@ -52,6 +52,7 @@ curl http://localhost:8000/health
 | redis | `localhost:6379` | очередь Celery |
 | minio | http://localhost:9000, консоль `:9001` | S3-хранилище фото |
 | minio-init | — | создаёт бакет `fleetguard` и закрывает анонимный доступ |
+| frontend | http://localhost:3000 | Next.js: вход, регистрация, машины |
 
 ## Локальная разработка без Docker
 
@@ -70,6 +71,19 @@ uvicorn app.main:app --reload --port 8000
 
 Конфигурация читается из переменных окружения и файла `.env` в корне репозитория; значения по
 умолчанию рассчитаны на docker compose. Для локального PostgreSQL укажите свой `DATABASE_URL`.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:3000
+npm run lint
+npm run build
+```
+
+Фронтенд проксирует `/api/*` в `BACKEND_URL` (по умолчанию `http://127.0.0.1:8000`), поэтому
+backend должен быть запущен. Подробности — в [`frontend/README.md`](./frontend/README.md).
 
 ## API (v1)
 
@@ -95,7 +109,7 @@ uvicorn app.main:app --reload --port 8000
 - [x] Д2. Модели БД и Alembic
 - [x] Д3. Авторизация и организации
 - [x] Д4. CRUD машин
-- [ ] Д5. Скелет фронтенда
+- [x] Д5. Скелет фронтенда: вход, регистрация организации, список машин с поиском и добавлением
 - [ ] Д6. CI
 
 ## Безопасность
