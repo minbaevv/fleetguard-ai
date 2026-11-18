@@ -1,16 +1,13 @@
-from collections.abc import Iterator
 from dataclasses import dataclass
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 from app.db.models import (
-    Base,
     ChatMessage,
     ChatRole,
     Damage,
@@ -31,22 +28,6 @@ from app.db.models import (
 )
 
 
-@pytest.fixture
-def session() -> Iterator[Session]:
-    # StaticPool держит одно соединение: in-memory SQLite живёт, пока жив engine.
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, expire_on_commit=False)
-    with factory() as db_session:
-        yield db_session
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-
-
 @dataclass
 class Seed:
     org: Organization
@@ -59,7 +40,7 @@ class Seed:
     report: Report
 
 
-def seed_inspection(session: Session) -> Seed:
+def seed_inspection(db_session: Session) -> Seed:
     org = Organization(name="Тестовый парк")
     admin = User(
         organization=org,
@@ -70,8 +51,8 @@ def seed_inspection(session: Session) -> Seed:
     )
     vehicle = Vehicle(organization=org, plate="A123BC", model="Kia Rio", year=2021)
     # UUID по умолчанию вычисляется на INSERT, поэтому фиксируем id до создания org_id-ссылок.
-    session.add_all([org, admin, vehicle])
-    session.flush()
+    db_session.add_all([org, admin, vehicle])
+    db_session.flush()
 
     pair_id = uuid4()
 
@@ -125,8 +106,8 @@ def seed_inspection(session: Session) -> Seed:
     chat = ChatMessage(org_id=org.id, user_id=admin.id, role=ChatRole.user, content="Что нового?")
     usage = LlmUsage(org_id=org.id, kind="report", input_tokens=120, output_tokens=80)
 
-    session.add_all([org, admin, vehicle, before, after, photo, damage, report, chat, usage])
-    session.commit()
+    db_session.add_all([org, admin, vehicle, before, after, photo, damage, report, chat, usage])
+    db_session.commit()
 
     return Seed(
         org=org,
@@ -140,10 +121,10 @@ def seed_inspection(session: Session) -> Seed:
     )
 
 
-def test_inspection_graph_roundtrip(session: Session) -> None:
-    data = seed_inspection(session)
+def test_inspection_graph_roundtrip(db_session: Session) -> None:
+    data = seed_inspection(db_session)
 
-    loaded = session.get(Inspection, data.after.id)
+    loaded = db_session.get(Inspection, data.after.id)
 
     assert loaded is not None
     assert loaded.status is InspectionStatus.processing
@@ -154,39 +135,39 @@ def test_inspection_graph_roundtrip(session: Session) -> None:
     assert len(loaded.damages) == 1
     assert loaded.damages[0].polygon == [[0.12, 0.4], [0.18, 0.41], [0.17, 0.45]]
     assert loaded.damages[0].is_new is True
-    assert session.scalar(select(Report).where(Report.after_inspection_id == loaded.id))
-    assert session.scalar(select(ChatMessage))
-    assert session.scalar(select(LlmUsage))
+    assert db_session.scalar(select(Report).where(Report.after_inspection_id == loaded.id))
+    assert db_session.scalar(select(ChatMessage))
+    assert db_session.scalar(select(LlmUsage))
 
 
-def test_enum_values_are_stored_in_lowercase(session: Session) -> None:
-    seed_inspection(session)
+def test_enum_values_are_stored_in_lowercase(db_session: Session) -> None:
+    seed_inspection(db_session)
 
-    roles = session.scalars(select(User.role)).all()
+    roles = db_session.scalars(select(User.role)).all()
 
     assert roles == [UserRole.admin]
     assert roles[0].value == "admin"
 
 
-def test_vehicle_plate_is_unique_per_organization(session: Session) -> None:
-    data = seed_inspection(session)
+def test_vehicle_plate_is_unique_per_organization(db_session: Session) -> None:
+    data = seed_inspection(db_session)
 
     other_org = Organization(name="Другой парк")
-    session.add(other_org)
-    session.flush()
+    db_session.add(other_org)
+    db_session.flush()
 
-    session.add(Vehicle(organization=other_org, plate="A123BC", model="Hyundai Solaris"))
-    session.flush()  # тот же номер в другой организации — допустимо
+    db_session.add(Vehicle(organization=other_org, plate="A123BC", model="Hyundai Solaris"))
+    db_session.flush()  # тот же номер в другой организации — допустимо
 
-    session.add(Vehicle(organization=data.org, plate="A123BC", model="Kia Rio"))
+    db_session.add(Vehicle(organization=data.org, plate="A123BC", model="Kia Rio"))
     with pytest.raises(IntegrityError):
-        session.flush()
+        db_session.flush()
 
 
-def test_photo_side_is_unique_per_inspection(session: Session) -> None:
-    data = seed_inspection(session)
+def test_photo_side_is_unique_per_inspection(db_session: Session) -> None:
+    data = seed_inspection(db_session)
 
-    session.add(
+    db_session.add(
         Photo(
             inspection=data.after,
             side=PhotoSide.front,
@@ -194,13 +175,13 @@ def test_photo_side_is_unique_per_inspection(session: Session) -> None:
         )
     )
     with pytest.raises(IntegrityError):
-        session.flush()
+        db_session.flush()
 
 
-def test_pair_has_one_inspection_per_kind(session: Session) -> None:
-    data = seed_inspection(session)
+def test_pair_has_one_inspection_per_kind(db_session: Session) -> None:
+    data = seed_inspection(db_session)
 
-    session.add(
+    db_session.add(
         Inspection(
             org_id=data.before.org_id,
             vehicle_id=data.before.vehicle_id,
@@ -211,11 +192,11 @@ def test_pair_has_one_inspection_per_kind(session: Session) -> None:
         )
     )
     with pytest.raises(IntegrityError):
-        session.flush()
+        db_session.flush()
 
 
-def test_deleting_inspection_removes_photos_and_damages(session: Session) -> None:
-    data = seed_inspection(session)
+def test_deleting_inspection_removes_photos_and_damages(db_session: Session) -> None:
+    data = seed_inspection(db_session)
     extra = Inspection(
         org_id=data.org.id,
         vehicle=data.vehicle,
@@ -233,11 +214,11 @@ def test_deleting_inspection_removes_photos_and_damages(session: Session) -> Non
         polygon=[[0.1, 0.1], [0.2, 0.2], [0.15, 0.3]],
         source=DamageSource.cv,
     )
-    session.add_all([extra, extra_photo, extra_damage])
-    session.commit()
+    db_session.add_all([extra, extra_photo, extra_damage])
+    db_session.commit()
 
-    session.delete(extra)
-    session.commit()
+    db_session.delete(extra)
+    db_session.commit()
 
-    assert session.get(Photo, extra_photo.id) is None
-    assert session.get(Damage, extra_damage.id) is None
+    assert db_session.get(Photo, extra_photo.id) is None
+    assert db_session.get(Damage, extra_damage.id) is None

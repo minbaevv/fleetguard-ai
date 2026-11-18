@@ -13,6 +13,7 @@ known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]  # assert и тестовые секреты допустимы в тестах
+"tests/conftest.py" = ["E402"]  # env выставляется до импорта приложения
 "alembic/versions/*.py" = ["F401"]  # шаблон Alembic импортирует sa и op всегда
 
 [tool.pytest.ini_options]

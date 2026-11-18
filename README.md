@@ -71,11 +71,24 @@ uvicorn app.main:app --reload --port 8000
 Конфигурация читается из переменных окружения и файла `.env` в корне репозитория; значения по
 умолчанию рассчитаны на docker compose. Для локального PostgreSQL укажите свой `DATABASE_URL`.
 
+## API (v1)
+
+Базовый путь `/api/v1`. JWT хранится в httpOnly-cookie `access_token`, ошибки приходят в формате
+`{"error": {"code": "...", "message": "..."}}`.
+
+| Метод | Путь | Доступ |
+|---|---|---|
+| POST | `/api/v1/auth/register-org` | создаёт организацию и первого админа, ставит cookie |
+| POST | `/api/v1/auth/login` | вход по email и паролю |
+| POST | `/api/v1/auth/logout` | очищает cookie |
+| GET | `/api/v1/auth/me` | текущий пользователь и организация |
+| POST | `/api/v1/users` | только admin: создать менеджера или водителя |
+
 ## Статус
 
 - [x] Д1. Структура репозитория, Docker Compose (postgres, redis, minio), `/health`, README
 - [x] Д2. Модели БД и Alembic
-- [ ] Д3. Авторизация и организации
+- [x] Д3. Авторизация и организации
 - [ ] Д4. CRUD машин
 - [ ] Д5. Скелет фронтенда
 - [ ] Д6. CI

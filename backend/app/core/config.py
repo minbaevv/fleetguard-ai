@@ -44,6 +44,17 @@ class Settings(BaseSettings):
 
     max_upload_bytes: int = 10 * 1024 * 1024
 
+    @field_validator("jwt_secret")
+    @classmethod
+    def _require_jwt_secret(cls, value: str) -> str:
+        # Короткий или пустой секрет делает подпись токенов предсказуемой.
+        if len(value) < 32:
+            raise ValueError(
+                "JWT_SECRET должен быть не короче 32 символов: "
+                'python -c "import secrets; print(secrets.token_urlsafe(48))"'
+            )
+        return value
+
     @field_validator("database_url")
     @classmethod
     def _require_psycopg_driver(cls, value: str) -> str:

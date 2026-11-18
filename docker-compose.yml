@@ -76,7 +76,7 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       S3_BUCKET: ${S3_BUCKET:-fleetguard}
-      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-before-deploying-0123456789}
       ALLOWED_ORIGINS: '${ALLOWED_ORIGINS:-["http://localhost:3000"]}'
     ports:
       - "${BACKEND_PORT:-8000}:8000"
