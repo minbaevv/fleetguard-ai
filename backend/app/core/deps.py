@@ -9,6 +9,7 @@ from app.core.errors import ApiError
 from app.core.security import AUTH_COOKIE_NAME, decode_access_token
 from app.db.models import User, UserRole
 from app.db.session import get_session
+from app.services.storage import StorageService, get_storage
 
 
 def get_db() -> Iterator[Session]:
@@ -60,3 +61,5 @@ def require_roles(*allowed: UserRole):
 
 
 ManagerUser = Annotated[User, Depends(require_roles(UserRole.admin, UserRole.manager))]
+
+StorageDep = Annotated[StorageService, Depends(get_storage)]
