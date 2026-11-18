@@ -32,11 +32,15 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     s3_endpoint_url: str = "http://localhost:9000"
+    # Адрес для браузера: в Docker backend ходит на minio:9000, а ссылки ведут на localhost:9000.
+    s3_public_endpoint_url: str = ""
     s3_access_key: str = ""
     s3_secret_key: str = ""
     s3_bucket: str = "fleetguard"
     s3_region: str = "us-east-1"
     s3_use_ssl: bool = False
+    # 7 суток — верхняя граница SigV4; короткий срок не даёт ссылке «протухнуть» в отчёте.
+    s3_presign_expire_seconds: int = Field(default=900, ge=60, le=604800)
 
     jwt_secret: str = ""
     jwt_algorithm: str = "HS256"

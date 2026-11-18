@@ -1,4 +1,6 @@
 -r requirements.txt
 httpx2>=2.16,<3.0
+# S3-мок для тестов хранилища: MinIO в CI не требуется
+moto[s3]>=5.0,<6.0
 pytest>=8.3,<9.0
 ruff>=0.7,<1.0
