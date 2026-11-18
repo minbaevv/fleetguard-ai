@@ -1,0 +1,39 @@
+# Секреты и локальное окружение
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-error.log*
+
+# Артефакты ML: веса и датасеты в git не храним
+cv/weights/*.pt
+cv/weights/*.pth
+cv/weights/*.onnx
+datasets/
+data/
+
+# Локальные артефакты
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

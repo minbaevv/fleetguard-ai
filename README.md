@@ -1,0 +1,96 @@
+# FleetGuard AI
+
+ИИ-сервис для таксопарков и проката: водитель фотографирует кузов с четырёх сторон до и после
+смены, система находит **новые** повреждения, формирует акт осмотра, а менеджер задаёт вопросы
+по данным в чате.
+
+Реализация идёт по плану в [`PLAN.md`](./PLAN.md), правила проекта — в [`AGENTS.md`](./AGENTS.md).
+
+## Стек
+
+- Backend: Python 3.12, FastAPI, SQLAlchemy 2 + Alembic, Pydantic v2, Celery + Redis, PostgreSQL
+- Хранилище: MinIO (S3 API)
+- CV: OpenCV, Ultralytics YOLO (seg), PyTorch
+- LLM: LangChain, structured output, единая точка вызова — `llm/client.py`
+- Frontend: Next.js (App Router), TypeScript, Tailwind
+- Инфра: Docker Compose, GitHub Actions
+
+## Структура
+
+```
+fleetguard-ai/
+  AGENTS.md, PLAN.md, README.md
+  docker-compose.yml, .env.example
+  backend/     FastAPI-приложение, тесты, Dockerfile
+  cv/          inference, training, eval-наборы
+  llm/         клиент провайдера, схемы, промпты, ассистент, evals
+  frontend/    Next.js-приложение
+  infra/       prod compose, Caddy, бэкапы
+  docs/        архитектура, model card, демо-сценарий
+```
+
+## Быстрый старт (Docker)
+
+```bash
+cp .env.example .env      # заполнить POSTGRES_PASSWORD, MINIO_*, JWT_SECRET
+docker compose up -d --build
+curl http://localhost:8000/health
+```
+
+Ожидаемый ответ:
+
+```json
+{"status":"ok","version":"0.1.0","environment":"development"}
+```
+
+Сервисы и порты на хосте:
+
+| Сервис | Адрес | Назначение |
+|---|---|---|
+| backend | http://localhost:8000, `/docs` | API и Swagger |
+| postgres | `localhost:5433` | БД (5433, чтобы не конфликтовать с локальным PostgreSQL) |
+| redis | `localhost:6379` | очередь Celery |
+| minio | http://localhost:9000, консоль `:9001` | S3-хранилище фото |
+| minio-init | — | создаёт бакет `fleetguard` и закрывает анонимный доступ |
+
+## Локальная разработка без Docker
+
+Нужен Python 3.12+ (проверено на 3.13) и доступный PostgreSQL.
+
+```bash
+py -3 -m venv .venv
+.venv\Scripts\activate
+pip install -r backend/requirements-dev.txt
+
+cd backend
+pytest -q
+ruff check . && ruff format --check .
+uvicorn app.main:app --reload --port 8000
+```
+
+Конфигурация читается из переменных окружения и файла `.env` в корне репозитория; значения по
+умолчанию рассчитаны на docker compose. Для локального PostgreSQL укажите свой `DATABASE_URL`.
+
+## Статус
+
+- [x] Д1. Структура репозитория, Docker Compose (postgres, redis, minio), `/health`, README
+- [ ] Д2. Модели БД и Alembic
+- [ ] Д3. Авторизация и организации
+- [ ] Д4. CRUD машин
+- [ ] Д5. Скелет фронтенда
+- [ ] Д6. CI
+
+## Безопасность
+
+- Все запросы к данным фильтруются по `org_id` из сессии; `org_id` никогда не берётся из тела
+  запроса, query-параметров или аргументов LLM.
+- Секреты только в `.env` / переменных окружения; `.env` в git не попадает.
+- Загрузка файлов: проверка типа по содержимому, лимит 10 МБ, случайные ключи, подписанные ссылки.
+- Пароли хэшируются, токены и содержимое фото не логируются.
+- Текст с фото, госномера и сообщения пользователей считаются недоверенными данными.
+
+## Лицензии
+
+- Ultralytics YOLO распространяется по AGPL-3.0 — для портфолио допустимо, ограничение указано
+  в README и Model Card.
+- Лицензии датасетов и шрифтов для PDF проверяются перед публикацией.
