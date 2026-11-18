@@ -46,6 +46,20 @@ class DamageOut(BaseModel):
     llm_note: str | None
 
 
+class PhotoQualityOut(BaseModel):
+    ok: bool
+    flags: list[str]
+    score: float
+
+
+class PhotoUploadedOut(BaseModel):
+    photo_id: UUID
+    side: PhotoSide
+    width: int
+    height: int
+    quality: PhotoQualityOut
+
+
 class PhotoOut(BaseModel):
     id: UUID
     side: PhotoSide

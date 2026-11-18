@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     max_upload_bytes: int = 10 * 1024 * 1024
+    # Отсекаем «бомбы декомпрессии» до полного декодирования картинки.
+    max_image_pixels: int = Field(default=50_000_000, ge=1_000_000, le=200_000_000)
+    photo_jpeg_quality: int = Field(default=90, ge=60, le=95)
+
+    quality_min_width: int = Field(default=640, ge=100)
+    quality_min_height: int = Field(default=480, ge=100)
+    quality_blur_threshold: float = Field(default=60.0, ge=0.0)
+    quality_min_brightness: float = Field(default=40.0, ge=0.0, le=255.0)
+    quality_max_brightness: float = Field(default=215.0, ge=0.0, le=255.0)
 
     @field_validator("jwt_secret")
     @classmethod

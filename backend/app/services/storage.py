@@ -72,7 +72,7 @@ def _build_client(
 
 
 class StorageService:
-    """Обёртка над S3 API: загрузка, чтение и подписанные ссылки.
+    """Обёртка над S3 API: загрузка, чтение, удаление и подписанные ссылки.
 
     Бакет считается приватным: наружу отдаются только presigned URL с коротким сроком.
     """
@@ -161,6 +161,13 @@ class StorageService:
         body: bytes = response["Body"].read()
         content_type = str(response.get("ContentType", "application/octet-stream"))
         return body, content_type
+
+    def delete(self, key: str) -> None:
+        _validate_key(key)
+        try:
+            self._client.delete_object(Bucket=self.bucket, Key=key)
+        except (BotoCoreError, ClientError) as exc:
+            raise StorageError("storage_unavailable", "Не удалось удалить файл") from exc
 
     def presigned_get_url(self, key: str, expires_in: int | None = None) -> str:
         _validate_key(key)

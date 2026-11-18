@@ -74,6 +74,20 @@ def test_download_missing_object_raises_storage_error(storage: StorageService) -
     assert exc_info.value.code == "object_not_found"
 
 
+def test_delete_removes_object(storage: StorageService) -> None:
+    storage.upload(KEY, PAYLOAD, "image/jpeg")
+
+    storage.delete(KEY)
+
+    with pytest.raises(StorageError):
+        storage.download(KEY)
+
+
+def test_delete_missing_object_is_idempotent(storage: StorageService) -> None:
+    # S3 отвечает 204 на удаление несуществующего ключа: повторная уборка не должна падать.
+    storage.delete("photos/missing.jpg")
+
+
 @pytest.mark.parametrize(
     "key",
     ["", "../secret", "/absolute/path", "photos//front.jpg", "photos\\front.jpg"],

@@ -1,9 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, UploadFile, status
 
 from app.core.deps import CurrentUser, DbSession, StorageDep
 from app.core.errors import ApiError
+from app.db.models import PhotoSide
 from app.schemas.inspections import (
     DamageOut,
     InspectionCreate,
@@ -11,8 +12,11 @@ from app.schemas.inspections import (
     InspectionOut,
     InspectionStatusOut,
     PhotoOut,
+    PhotoQualityOut,
+    PhotoUploadedOut,
 )
 from app.services import inspections as inspection_service
+from app.services import photos as photo_service
 from app.services.storage import StorageError
 
 router = APIRouter(prefix="/inspections", tags=["inspections"])
@@ -29,6 +33,33 @@ def create_inspection(
         kind=inspection.kind,
         pair_id=inspection.pair_id,
         required_sides=list(inspection_service.REQUIRED_SIDES),
+    )
+
+
+@router.post(
+    "/{inspection_id}/photos",
+    status_code=status.HTTP_201_CREATED,
+    response_model=PhotoUploadedOut,
+)
+def upload_photo(
+    inspection_id: UUID,
+    side: PhotoSide,
+    file: UploadFile,
+    user: CurrentUser,
+    db: DbSession,
+    storage: StorageDep,
+) -> PhotoUploadedOut:
+    uploaded = photo_service.upload_photo(db, user, storage, inspection_id, side, file.file)
+    return PhotoUploadedOut(
+        photo_id=uploaded.photo.id,
+        side=uploaded.photo.side,
+        width=uploaded.quality.width,
+        height=uploaded.quality.height,
+        quality=PhotoQualityOut(
+            ok=uploaded.quality.ok,
+            flags=list(uploaded.quality.flags),
+            score=uploaded.quality.score,
+        ),
     )
 
 
