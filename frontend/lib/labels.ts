@@ -1,4 +1,4 @@
-import type { InspectionStatus, PhotoSide, UserRole } from "@/lib/types";
+import type { InspectionKind, InspectionStatus, PhotoSide, UserRole } from "@/lib/types";
 
 export const roleLabels: Record<UserRole, string> = {
   admin: "Администратор",
@@ -28,6 +28,11 @@ export const inspectionStatusLabels: Record<InspectionStatus, string> = {
   processing: "обработка",
   done: "готово",
   failed: "ошибка обработки",
+};
+
+export const inspectionKindLabels: Record<InspectionKind, string> = {
+  before: "до",
+  after: "после",
 };
 
 export const qualityFlagLabels: Record<string, string> = {

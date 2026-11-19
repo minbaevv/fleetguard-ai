@@ -306,9 +306,11 @@ export function CaptureWizard({ initialVehicleId }: CaptureWizardProps) {
                 Машина {selectedVehicle.plate} · {selectedVehicle.model}
               </p>
             ) : null}
-            <p className="mt-4 break-all text-xs text-slate-400">Номер осмотра: {inspectionId}</p>
             <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-              <Link href="/vehicles" className={primaryButtonClass}>
+              <Link href={`/inspections/${inspectionId}`} className={primaryButtonClass}>
+                Открыть осмотр
+              </Link>
+              <Link href="/vehicles" className={secondaryButtonClass}>
                 К списку машин
               </Link>
               <button type="button" onClick={onRestart} className={secondaryButtonClass}>
