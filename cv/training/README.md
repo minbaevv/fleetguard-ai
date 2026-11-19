@@ -71,11 +71,99 @@ python cv/training/train.py --data datasets/car-damage-yolo
 только на `val`; test-сплит не используется. Перед запуском проверяется `dataset.yaml`: классы
 `0..N-1`, полигоны в `0..1`, у каждого изображения есть `.txt`, лишних меток нет.
 
+### Обучение в Google Colab
+
+Полный цикл на бесплатном T4: скачивание ~4 ГБ, подготовка ~3 минуты, обучение 100 эпох с early
+stopping — ориентировочно 2–4 часа. Локальный GPU не нужен.
+
+1. `Среда выполнения → Сменить среду выполнения → T4 GPU`.
+
+2. Клонировать репозиторий и поставить зависимости:
+
+   ```bash
+   !git clone https://github.com/minbaevv/fleetguard-ai.git
+   %cd fleetguard-ai
+   !pip -q install ultralytics huggingface_hub
+   ```
+
+3. Скачать CarDD (официальный COCO-релиз, зеркало Hugging Face):
+
+   ```python
+   from huggingface_hub import snapshot_download
+
+   snapshot_download(
+       repo_id="Vishwa-307/CarDD",
+       repo_type="dataset",
+       local_dir="datasets/cardd",
+       allow_patterns=[
+           "CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_*.json",
+           "CarDD_release/CarDD_release/CarDD_COCO/train2017/*.jpg",
+           "CarDD_release/CarDD_release/CarDD_COCO/val2017/*.jpg",
+           "CarDD_release/CarDD_release/CarDD_COCO/test2017/*.jpg",
+       ],
+       max_workers=8,
+   )
+   ```
+
+4. Собрать изображения в один каталог (жёсткие ссылки, без копирования) и объединить разметку:
+   `image_id` в трёх JSON пересекаются, поэтому нужен `merge_coco_splits.py`.
+
+   ```python
+   import os
+   from pathlib import Path
+
+   coco = Path("datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO")
+   flat = Path("datasets/cardd/images_all")
+   flat.mkdir(parents=True, exist_ok=True)
+   for split in ("train2017", "val2017", "test2017"):
+       for image in (coco / split).glob("*.jpg"):
+           target = flat / image.name
+           if not target.exists():
+               os.link(image, target)
+   print(len(list(flat.glob("*.jpg"))), "images")
+   ```
+
+   ```bash
+   !python cv/training/merge_coco_splits.py \
+     --annotations datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_train2017.json \
+                   datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_val2017.json \
+                   datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_test2017.json \
+     --out datasets/cardd/instances_all.json
+   ```
+
+5. Подготовить YOLO-seg датасет и проверить его до обучения:
+
+   ```bash
+   !python cv/training/prepare_dataset.py \
+     --images datasets/cardd/images_all \
+     --annotations datasets/cardd/instances_all.json \
+     --out datasets/cardd-yolo \
+     --seed 42
+   !python cv/training/train.py --data datasets/cardd-yolo --dry-run
+   ```
+
+6. Запустить обучение. Чекпоинты сразу пишутся на Google Drive, чтобы пережить разрыв сессии:
+
+   ```bash
+   !python cv/training/train.py \
+     --data datasets/cardd-yolo \
+     --device 0 \
+     --project /content/drive/MyDrive/fleetguard-cv \
+     --name yolo11n-seg-cardd
+   ```
+
+   Если Drive ещё не подключён, выполните `from google.colab import drive; drive.mount("/content/drive")`
+   или уберите `--project`, чтобы писать в `cv/runs/`.
+
+7. Забрать артефакты: `metrics.md`, `metrics.json`, `weights/best.pt` и `sha256sum best.pt`.
+   Метрики и ссылка на веса публикуются в этом файле после прогона.
+
 ### Статус Д2
 
-Реальный прогон не выполнен: CarDD выдаётся по заявке и письму авторам, поэтому измеренных
-метрик пока нет. Скрипт и тесты готовы. После получения датасета нужно выполнить команду выше и
-опубликовать ссылку и sha256 `best.pt` в разделе «Правила».
+Реальный прогон ещё не выполнен: официальный CarDD выдаётся по заявке и письму авторам, поэтому
+для обучения используется публичное зеркало Hugging Face (лицензия CarDD — только исследования,
+см. `CarDD_license.pdf` в датасете). Инструкция выше готова, измеренных метрик пока нет. После
+прогона нужно опубликовать `metrics.md`, ссылку и sha256 `best.pt` в разделе «Правила».
 
 ## Правила
 
