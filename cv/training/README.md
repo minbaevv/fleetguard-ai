@@ -73,97 +73,93 @@ python cv/training/train.py --data datasets/car-damage-yolo
 
 ### Обучение в Google Colab
 
-Полный цикл на бесплатном T4: скачивание ~4 ГБ, подготовка ~3 минуты, обучение 100 эпох с early
-stopping — ориентировочно 2–4 часа. Локальный GPU не нужен.
+Готовый ноутбук: `cv/training/cardd_colab.ipynb`. Полный цикл на бесплатном T4: скачивание ~4 ГБ,
+подготовка 10–20 минут, обучение 100 эпох с early stopping — 1–3 часа. Локальный GPU не нужен.
 
-1. `Среда выполнения → Сменить среду выполнения → T4 GPU`.
+1. Открыть `cardd_colab.ipynb` в Colab: `File → Upload notebook` либо
+   `File → Open notebook → GitHub` → `minbaevv/fleetguard-ai`.
+2. `Среда выполнения → Сменить среду выполнения → T4 GPU`.
+3. `Среда выполнения → Выполнить все`, разрешить доступ к Google Drive.
 
-2. Клонировать репозиторий и поставить зависимости:
+Ноутбук клонирует репозиторий, скачивает CarDD, собирает разметку из трёх COCO-файлов, готовит
+YOLO-seg датасет, проверяет его, обучает и складывает `metrics.md`, `metrics.json`, `best.pt` на
+Drive в `fleetguard-cv/runs/yolo11n-seg-cardd`.
 
-   ```bash
-   !git clone https://github.com/minbaevv/fleetguard-ai.git
-   %cd fleetguard-ai
-   !pip -q install ultralytics huggingface_hub
-   ```
+Вручную те же шаги:
 
-3. Скачать CarDD (официальный COCO-релиз, зеркало Hugging Face):
+```bash
+!git clone https://github.com/minbaevv/fleetguard-ai.git
+%cd fleetguard-ai
+!pip -q install ultralytics huggingface_hub
+```
 
-   ```python
-   from huggingface_hub import snapshot_download
+```python
+from huggingface_hub import snapshot_download
 
-   snapshot_download(
-       repo_id="Vishwa-307/CarDD",
-       repo_type="dataset",
-       local_dir="datasets/cardd",
-       allow_patterns=[
-           "CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_*.json",
-           "CarDD_release/CarDD_release/CarDD_COCO/train2017/*.jpg",
-           "CarDD_release/CarDD_release/CarDD_COCO/val2017/*.jpg",
-           "CarDD_release/CarDD_release/CarDD_COCO/test2017/*.jpg",
-       ],
-       max_workers=8,
-   )
-   ```
+snapshot_download(
+    repo_id="shawnmichael/CarDD",
+    repo_type="dataset",
+    local_dir="datasets/cardd",
+    allow_patterns=[
+        "images/train/*.jpg",
+        "images/val/*.jpg",
+        "images/test/*.jpg",
+        "annotations/instances_*.json",
+    ],
+    max_workers=8,
+)
+```
 
-4. Собрать изображения в один каталог (жёсткие ссылки, без копирования) и объединить разметку:
-   `image_id` в трёх JSON пересекаются, поэтому нужен `merge_coco_splits.py`.
+Зеркало содержит все 4000 изображений (2816 train / 810 val / 374 test) и три COCO-файла. Каталоги
+`images/*` раскладываются в один по имени файла: имена уникальны, `image_id` в JSON пересекаются,
+поэтому разметка объединяется через `merge_coco_splits.py`.
 
-   ```python
-   import os
-   from pathlib import Path
+```python
+import os
+from pathlib import Path
 
-   coco = Path("datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO")
-   flat = Path("datasets/cardd/images_all")
-   flat.mkdir(parents=True, exist_ok=True)
-   for split in ("train2017", "val2017", "test2017"):
-       for image in (coco / split).glob("*.jpg"):
-           target = flat / image.name
-           if not target.exists():
-               os.link(image, target)
-   print(len(list(flat.glob("*.jpg"))), "images")
-   ```
+base = Path("datasets/cardd")
+flat = base / "images_all"
+flat.mkdir(parents=True, exist_ok=True)
+for split in ("train", "val", "test"):
+    for image in (base / "images" / split).glob("*.jpg"):
+        target = flat / image.name
+        if not target.exists():
+            os.link(image, target)
+print(len(list(flat.glob("*.jpg"))), "images")
+```
 
-   ```bash
-   !python cv/training/merge_coco_splits.py \
-     --annotations datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_train2017.json \
-                   datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_val2017.json \
-                   datasets/cardd/CarDD_release/CarDD_release/CarDD_COCO/annotations/instances_test2017.json \
-     --out datasets/cardd/instances_all.json
-   ```
+```bash
+!python cv/training/merge_coco_splits.py \
+  --annotations datasets/cardd/annotations/instances_train2017.json \
+                datasets/cardd/annotations/instances_val2017.json \
+                datasets/cardd/annotations/instances_test2017.json \
+  --out datasets/cardd/instances_all.json
+!python cv/training/prepare_dataset.py \
+  --images datasets/cardd/images_all \
+  --annotations datasets/cardd/instances_all.json \
+  --out datasets/cardd-yolo \
+  --seed 42
+!python cv/training/train.py --data datasets/cardd-yolo --dry-run
+```
 
-5. Подготовить YOLO-seg датасет и проверить его до обучения:
+```bash
+!python cv/training/train.py \
+  --data datasets/cardd-yolo \
+  --device 0 \
+  --project /content/drive/MyDrive/fleetguard-cv/runs \
+  --name yolo11n-seg-cardd
+```
 
-   ```bash
-   !python cv/training/prepare_dataset.py \
-     --images datasets/cardd/images_all \
-     --annotations datasets/cardd/instances_all.json \
-     --out datasets/cardd-yolo \
-     --seed 42
-   !python cv/training/train.py --data datasets/cardd-yolo --dry-run
-   ```
-
-6. Запустить обучение. Чекпоинты сразу пишутся на Google Drive, чтобы пережить разрыв сессии:
-
-   ```bash
-   !python cv/training/train.py \
-     --data datasets/cardd-yolo \
-     --device 0 \
-     --project /content/drive/MyDrive/fleetguard-cv \
-     --name yolo11n-seg-cardd
-   ```
-
-   Если Drive ещё не подключён, выполните `from google.colab import drive; drive.mount("/content/drive")`
-   или уберите `--project`, чтобы писать в `cv/runs/`.
-
-7. Забрать артефакты: `metrics.md`, `metrics.json`, `weights/best.pt` и `sha256sum best.pt`.
-   Метрики и ссылка на веса публикуются в этом файле после прогона.
+Забрать артефакты: `metrics.md`, `metrics.json`, `weights/best.pt` и sha256 весов. Метрики и ссылка
+на веса публикуются в этом файле после прогона.
 
 ### Статус Д2
 
 Реальный прогон ещё не выполнен: официальный CarDD выдаётся по заявке и письму авторам, поэтому
-для обучения используется публичное зеркало Hugging Face (лицензия CarDD — только исследования,
-см. `CarDD_license.pdf` в датасете). Инструкция выше готова, измеренных метрик пока нет. После
-прогона нужно опубликовать `metrics.md`, ссылку и sha256 `best.pt` в разделе «Правила».
+используется публичное зеркало Hugging Face (лицензия CarDD — только исследования, коммерческое
+использование требует разрешения авторов). Ноутбук и инструкция готовы, измеренных метрик пока нет.
+После прогона нужно опубликовать `metrics.md`, ссылку и sha256 `best.pt` в разделе «Правила».
 
 ## Правила
 
