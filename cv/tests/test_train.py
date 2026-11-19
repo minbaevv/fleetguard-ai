@@ -199,6 +199,15 @@ def test_build_train_kwargs_maps_config(tmp_path: Path) -> None:
     assert kwargs["batch"] == 2
     assert kwargs["seed"] == 7
     assert kwargs["exist_ok"] is True
+    assert kwargs["device"] is None
+
+
+def test_build_train_kwargs_forwards_device(tmp_path: Path) -> None:
+    config = train.TrainConfig(device="0")
+
+    kwargs = train.build_train_kwargs(config, tmp_path / "dataset.yaml")
+
+    assert kwargs["device"] == "0"
 
 
 def test_render_metrics_table_marks_missing_values() -> None:

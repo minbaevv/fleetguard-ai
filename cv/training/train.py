@@ -427,6 +427,7 @@ def build_train_kwargs(config: TrainConfig, data_path: Path) -> dict[str, Any]:
         "seed": config.seed,
         "workers": config.workers,
         "optimizer": config.optimizer,
+        "device": config.device,
         "project": str(config.project),
         "name": config.name,
         "exist_ok": True,
