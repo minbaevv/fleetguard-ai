@@ -1,0 +1,3 @@
+# Обучение: ultralytics тянет torch, torchvision и opencv-python.
+# Локально ставить не обязательно: train.py --dry-run работает без этих зависимостей.
+ultralytics>=8.3,<9.0

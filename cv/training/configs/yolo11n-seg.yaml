@@ -1,0 +1,13 @@
+# Базовая seg-модель из PLAN.md, п. 6.2: дообучение 50–100 эпох на одном GPU.
+model: yolo11n-seg.pt
+epochs: 100
+imgsz: 640
+batch: 16
+patience: 20
+seed: 42
+workers: 4
+optimizer: auto
+# null — Ultralytics выбирает устройство сам; cpu / 0 / 0,1 задаются вручную.
+device: null
+project: cv/runs
+name: yolo11n-seg-baseline

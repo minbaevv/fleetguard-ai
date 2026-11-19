@@ -45,6 +45,38 @@ prepare_report.json
 
 Проверки: `cd cv && pytest`, `ruff check .`, `ruff format --check .`.
 
+## Обучение
+
+`train.py` проверяет датасет и запускает дообучение `yolo11n-seg` по конфигу
+`configs/yolo11n-seg.yaml`: 100 эпох, 640 px, batch 16, seed 42.
+
+Сначала сухой прогон — без GPU и без Ultralytics:
+
+```bash
+python cv/training/train.py --data datasets/car-damage-yolo --dry-run
+```
+
+Реальное обучение на Colab/Kaggle с GPU:
+
+```bash
+pip install -r cv/requirements-train.txt
+python cv/training/train.py --data datasets/car-damage-yolo
+```
+
+Параметры переопределяются флагами `--model`, `--epochs`, `--imgsz`, `--batch`, `--seed`,
+`--device`, `--project`, `--name`. Результаты складываются в
+`cv/runs/yolo11n-seg-baseline/`: `weights/best.pt`, `metrics.md`, `metrics.json`.
+
+`metrics.md` содержит mAP50 и mAP50-95 по маскам и precision/recall по каждому классу. Оценка идёт
+только на `val`; test-сплит не используется. Перед запуском проверяется `dataset.yaml`: классы
+`0..N-1`, полигоны в `0..1`, у каждого изображения есть `.txt`, лишних меток нет.
+
+### Статус Д2
+
+Реальный прогон не выполнен: CarDD выдаётся по заявке и письму авторам, поэтому измеренных
+метрик пока нет. Скрипт и тесты готовы. После получения датасета нужно выполнить команду выше и
+опубликовать ссылку и sha256 `best.pt` в разделе «Правила».
+
 ## Правила
 
 - Веса (`*.pt`, `*.pth`, `*.onnx`) в git не коммитятся.
