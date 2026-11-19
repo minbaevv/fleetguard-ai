@@ -76,7 +76,10 @@ python cv/training/train.py --data datasets/car-damage-yolo
 Готовый ноутбук: `cv/training/cardd_colab.ipynb`. Полный цикл на бесплатном T4: скачивание ~4 ГБ,
 подготовка 10–20 минут, обучение 100 эпох с early stopping — 1–3 часа. Локальный GPU не нужен.
 
-1. Открыть `cardd_colab.ipynb` в Colab: `File → Upload notebook` либо
+Прямая ссылка:
+<https://colab.research.google.com/github/minbaevv/fleetguard-ai/blob/master/cv/training/cardd_colab.ipynb>
+
+1. Открыть `cardd_colab.ipynb` в Colab по ссылке выше либо через
    `File → Open notebook → GitHub` → `minbaevv/fleetguard-ai`.
 2. `Среда выполнения → Сменить среду выполнения → T4 GPU`.
 3. `Среда выполнения → Выполнить все`, разрешить доступ к Google Drive.
