@@ -364,6 +364,21 @@ def test_finished_inspection_rejects_new_photos(
     assert response.json()["error"]["code"] == "inspection_not_draft"
 
 
+def test_failed_inspection_rejects_new_photos(
+    client: TestClient, db_session: Session, storage: StorageService
+) -> None:
+    register(client)
+    inspection = create_inspection(client, create_vehicle(client)["id"])
+    row = db_session.get(Inspection, UUID(inspection["id"]))
+    row.status = InspectionStatus.failed
+    db_session.commit()
+
+    response = upload(client, inspection["id"], encode(noise_image()))
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "inspection_not_draft"
+
+
 def test_foreign_inspection_returns_404(
     client: TestClient, db_session: Session, storage: StorageService
 ) -> None:

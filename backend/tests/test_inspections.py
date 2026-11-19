@@ -169,6 +169,18 @@ def test_after_with_unknown_pair_returns_404(client: TestClient) -> None:
     assert response.json()["error"]["code"] == "inspection_pair_not_found"
 
 
+def test_create_rejects_unknown_kind(client: TestClient) -> None:
+    register(client)
+    vehicle = create_vehicle(client)
+
+    response = client.post(
+        "/api/v1/inspections", json={"vehicle_id": vehicle["id"], "kind": "during"}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
 def test_before_after_flow_links_pair(client: TestClient, db_session: Session) -> None:
     register(client)
     vehicle = create_vehicle(client)
@@ -264,6 +276,31 @@ def test_finish_twice_is_rejected(client: TestClient, db_session: Session) -> No
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "inspection_not_draft"
+
+
+def test_failed_inspection_cannot_be_finished(client: TestClient, db_session: Session) -> None:
+    register(client)
+    vehicle = create_vehicle(client)
+    before = create_inspection(client, vehicle["id"], "before")
+    add_photos(db_session, before["id"])
+    inspection = db_session.get(Inspection, UUID(before["id"]))
+    inspection.status = InspectionStatus.failed
+    inspection.failure_reason = "detector crashed"
+    db_session.commit()
+
+    response = client.post(f"/api/v1/inspections/{before['id']}/finish")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "inspection_not_draft"
+
+
+def test_get_unknown_inspection_returns_404(client: TestClient) -> None:
+    register(client)
+
+    response = client.get(f"/api/v1/inspections/{uuid4()}")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "inspection_not_found"
 
 
 def test_get_inspection_returns_photos_and_damages(
