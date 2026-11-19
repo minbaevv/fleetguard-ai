@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { AppHeader } from "@/components/AppHeader";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { ApiError, apiFetch, apiUpload, errorMessage } from "@/lib/api";
 import {
   PHOTO_SIDES,
@@ -64,6 +65,18 @@ function toCapturedPhotos(detail: InspectionDetail): CapturedPhotos {
   }
   return restored;
 }
+
+function statusTone(status: InspectionStatus): string {
+  if (status === "done") return "tone-emerald";
+  if (status === "failed") return "tone-red";
+  return "tone-amber";
+}
+
+const steps = [
+  { number: "01", title: "Выберите машину", text: "Из парка организации" },
+  { number: "02", title: "Снимите 4 стороны", text: "Спереди, сзади и борта" },
+  { number: "03", title: "Проверьте качество", text: "Кадры проверяются сразу" },
+];
 
 export function CaptureWizard({ initialVehicleId }: CaptureWizardProps) {
   const router = useRouter();
@@ -268,11 +281,7 @@ export function CaptureWizard({ initialVehicleId }: CaptureWizardProps) {
   }
 
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center text-slate-500" role="status">
-        Загрузка…
-      </main>
-    );
+    return <LoadingScreen label="Готовим мастер съёмки…" />;
   }
 
   if (!auth) {
@@ -283,32 +292,60 @@ export function CaptureWizard({ initialVehicleId }: CaptureWizardProps) {
 
   if (inspectionId && status && status !== "draft") {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen pb-16">
         <AppHeader
           auth={auth}
           onLogout={onLogout}
           loggingOut={loggingOut}
           title="Осмотр машины"
         />
-        <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-          <section className={`${cardClass} p-6 text-center sm:p-8`}>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-              Готово
+        <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+          <section className={`${cardClass} reveal overflow-hidden p-6 text-center sm:p-10`}>
+            <span className="success-ring" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" className="h-9 w-9">
+                <path
+                  d="m5 12.5 4.2 4.2L19 6.8"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+
+            <p className="mt-6 text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-emerald-300/80">
+              Осмотр до смены
             </p>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900">
-              Осмотр отправлен на обработку
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              Фото загружены, осмотр отправлен
             </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Все 4 фото загружены. Статус: {inspectionStatusLabels[status]}.
+            <p className="mt-2 text-sm text-slate-400">
+              Все 4 стороны сняты. Дальше система обработает кадры и подготовит акт.
             </p>
-            {selectedVehicle ? (
-              <p className="mt-1 text-sm text-slate-500">
-                Машина {selectedVehicle.plate} · {selectedVehicle.model}
-              </p>
-            ) : null}
-            <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <span className={`pill pill-dot ${statusTone(status)}`}>
+                {inspectionStatusLabels[status]}
+              </span>
+              {selectedVehicle ? (
+                <span className="plate-badge">
+                  {selectedVehicle.plate} · {selectedVehicle.model}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="mt-8 flex flex-col justify-center gap-2 sm:flex-row">
               <Link href={`/inspections/${inspectionId}`} className={primaryButtonClass}>
                 Открыть осмотр
+                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                  <path
+                    d="M5 12h13M13 6l6 6-6 6"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </Link>
               <Link href="/vehicles" className={secondaryButtonClass}>
                 К списку машин
@@ -325,77 +362,118 @@ export function CaptureWizard({ initialVehicleId }: CaptureWizardProps) {
 
   if (!inspectionId) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen pb-16">
         <AppHeader
           auth={auth}
           onLogout={onLogout}
           loggingOut={loggingOut}
           title="Осмотр машины"
         />
-        <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+        <main className="mx-auto max-w-4xl space-y-5 px-4 py-6 sm:px-6">
           {error ? (
-            <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p role="alert" className="callout callout-danger reveal">
               {error}
             </p>
           ) : null}
 
-          <section className={`${cardClass} p-4 sm:p-6`}>
-            <h2 className="text-lg font-semibold text-slate-900">Новый осмотр «до»</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Снимем машину с четырёх сторон. Каждое фото проверяется сразу: если кадр размыт
-              или тёмный, мастер попросит переснять.
-            </p>
+          <section className="hero-panel reveal">
+            <div className="relative z-10 grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_320px] lg:items-end">
+              <div>
+                <span className="eyebrow">
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
+                  Новый осмотр
+                </span>
+                <h1 className="mt-4 text-3xl font-semibold leading-[1.08] tracking-[-0.025em] text-white sm:text-4xl">
+                  <span className="block">Снимок «до»</span>
+                  <span className="text-gradient">за пару минут</span>
+                </h1>
+                <p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-400">
+                  Четыре стороны, проверка качества каждого кадра и сохранение в историю
+                  организации. Начните с выбора машины.
+                </p>
 
-            <div className="mt-5 space-y-1">
-              <label htmlFor="vehicle-select" className="block text-sm font-medium text-slate-700">
-                Машина
-              </label>
-              <select
-                id="vehicle-select"
-                value={vehicleId}
-                onChange={(event) => void onSelectVehicle(event.target.value)}
-                disabled={starting || resuming}
-                className={inputClass}
-              >
-                <option value="">Выберите машину</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.plate} · {vehicle.model}
-                  </option>
-                ))}
-              </select>
+                <div className="mt-6 hidden gap-2 sm:grid sm:grid-cols-3">
+                  {steps.map((step) => (
+                    <div key={step.number} className="stat-tile">
+                      <p className="text-[0.62rem] font-semibold tracking-[0.18em] text-cyan-300/70">
+                        {step.number}
+                      </p>
+                      <p className="mt-1.5 text-[0.8rem] font-semibold text-slate-100">
+                        {step.title}
+                      </p>
+                      <p className="mt-0.5 text-[0.7rem] leading-snug text-slate-500">
+                        {step.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="panel-soft w-full p-4">
+                <label htmlFor="vehicle-select" className="field-label">
+                  Машина
+                </label>
+                <select
+                  id="vehicle-select"
+                  value={vehicleId}
+                  onChange={(event) => void onSelectVehicle(event.target.value)}
+                  disabled={starting || resuming}
+                  className={inputClass}
+                >
+                  <option value="">Выберите машину</option>
+                  {vehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.plate} · {vehicle.model}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedVehicle ? (
+                  <p className="mt-2.5 text-[0.72rem] text-slate-500">
+                    {selectedVehicle.model}
+                    {selectedVehicle.year ? ` · ${selectedVehicle.year}` : ""}
+                  </p>
+                ) : null}
+
+                {resuming ? (
+                  <p role="status" className="mt-2.5 text-xs text-cyan-200">
+                    Загружаем черновик осмотра…
+                  </p>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => void onStart()}
+                  disabled={!vehicleId || starting || resuming}
+                  className={`${primaryButtonClass} mt-4 w-full`}
+                >
+                  {starting ? "Создаём…" : "Начать осмотр"}
+                </button>
+                <Link
+                  href="/vehicles"
+                  className={`${secondaryButtonClass} mt-2 w-full`}
+                >
+                  Отмена
+                </Link>
+
+                <p className="mt-3 text-center text-[0.68rem] leading-relaxed text-slate-600">
+                  Ссылки на фото подписанные и временные
+                </p>
+              </div>
             </div>
+          </section>
 
-            {vehicles.length === 0 ? (
-              <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {vehicles.length === 0 ? (
+            <section className={`${cardClass} reveal p-5 sm:p-6`}>
+              <p className="callout callout-warning">
                 В организации пока нет машин.{" "}
-                <Link href="/vehicles" className="font-medium underline">
+                <Link href="/vehicles" className="font-semibold underline underline-offset-2">
                   Добавьте машину
                 </Link>
                 , чтобы начать осмотр.
               </p>
-            ) : null}
-
-            {resuming ? (
-              <p role="status" className="mt-4 text-sm text-slate-500">
-                Загружаем черновик осмотра…
-              </p>
-            ) : null}
-
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => void onStart()}
-                disabled={!vehicleId || starting || resuming}
-                className={`${primaryButtonClass} w-full sm:w-auto`}
-              >
-                {starting ? "Создаём…" : "Начать осмотр"}
-              </button>
-              <Link href="/vehicles" className={`${secondaryButtonClass} w-full sm:w-auto`}>
-                Отмена
-              </Link>
-            </div>
-          </section>
+            </section>
+          ) : null}
         </main>
       </div>
     );
@@ -412,177 +490,293 @@ export function CaptureWizard({ initialVehicleId }: CaptureWizardProps) {
   }).length;
   const canFinish = capturedCount === PHOTO_SIDES.length && !uploading && !finishing;
 
+  const renderSideChip = (side: PhotoSide) => {
+    const quality = photos[side]?.quality;
+    const current = side === activeSide;
+    return (
+      <button
+        key={side}
+        type="button"
+        onClick={() => setActiveSide(side)}
+        disabled={uploading || finishing}
+        aria-current={current ? "step" : undefined}
+        data-quality={quality ? (quality.ok ? "ok" : "warn") : undefined}
+        className="side-chip"
+      >
+        <span className="block text-[0.78rem]">{sideLabels[side]}</span>
+        <span className="mt-0.5 flex items-center justify-center gap-1 text-[0.63rem] font-normal opacity-80">
+          {quality ? (
+            <>
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${
+                  quality.ok ? "bg-emerald-300" : "bg-amber-300"
+                }`}
+              />
+              {quality.ok ? "готово" : "переснять"}
+            </>
+          ) : (
+            "нет фото"
+          )}
+        </span>
+      </button>
+    );
+  };
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pb-16">
       <AppHeader auth={auth} onLogout={onLogout} loggingOut={loggingOut} title="Осмотр машины" />
 
-      <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+      <main className="mx-auto max-w-5xl space-y-4 px-4 py-6 sm:px-6">
         {error ? (
-          <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p role="alert" className="callout callout-danger reveal">
             {error}
           </p>
         ) : null}
 
-        <section className={`${cardClass} p-4 sm:p-6`}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                Шаг {sideIndex + 1} из {PHOTO_SIDES.length}
-                {selectedVehicle ? ` · ${selectedVehicle.plate}` : ""}
-              </p>
-              <h2 className="mt-1 text-xl font-semibold text-slate-900">
-                {sideLabels[activeSide]}
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">{sideHints[activeSide]}</p>
-            </div>
-            <Link href="/vehicles" className={`${secondaryButtonClass} shrink-0`}>
-              К машинам
-            </Link>
-          </div>
-
-          <nav aria-label="Стороны осмотра" className="mt-4 grid grid-cols-4 gap-2">
-            {PHOTO_SIDES.map((side) => {
-              const quality = photos[side]?.quality;
-              const current = side === activeSide;
-              const className = current
-                ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                : !quality
-                  ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  : quality.ok
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-amber-300 bg-amber-50 text-amber-800";
-              return (
-                <button
-                  key={side}
-                  type="button"
-                  onClick={() => setActiveSide(side)}
-                  disabled={uploading || finishing}
-                  aria-current={current ? "step" : undefined}
-                  className={`rounded-xl border px-2 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${className}`}
-                >
-                  <span className="block">{sideLabels[side]}</span>
-                  <span className="block text-[11px] font-normal">
-                    {!quality ? "нет фото" : quality.ok ? "готово" : "переснять"}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="relative mt-4 aspect-[4/3] overflow-hidden rounded-2xl bg-slate-900">
-            {photo ? (
-              <div
-                role="img"
-                aria-label={`Фото машины: ${sideLabels[activeSide].toLowerCase()}`}
-                className="absolute inset-0 bg-cover bg-center"
-                style={{ backgroundImage: `url(${photo.previewUrl})` }}
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center text-slate-300">
-                <p className="text-sm">Впишите машину в рамку целиком</p>
-                <p className="mt-1 text-xs text-slate-400">Свет должен падать на кузов, а не в камеру</p>
-              </div>
-            )}
-
-            <span aria-hidden="true" className="pointer-events-none absolute left-4 top-4 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-white/70" />
-            <span aria-hidden="true" className="pointer-events-none absolute right-4 top-4 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-white/70" />
-            <span aria-hidden="true" className="pointer-events-none absolute bottom-4 left-4 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-white/70" />
-            <span aria-hidden="true" className="pointer-events-none absolute bottom-4 right-4 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-white/70" />
-
-            {uploading ? (
-              <div
-                role="status"
-                className="absolute inset-0 flex items-center justify-center bg-slate-900/60 text-sm font-medium text-white"
-              >
-                Проверяем фото…
-              </div>
-            ) : null}
-          </div>
-
-          {photo ? (
-            photo.quality.ok ? (
-              <p
-                role="status"
-                className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-              >
-                Качество в порядке. Переходите к следующей стороне.
-              </p>
-            ) : (
-              <div role="alert" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                <p className="font-medium">Фото может не подойти:</p>
-                <ul className="mt-1 list-inside list-disc">
-                  {photo.quality.flags.map((flag) => (
-                    <li key={flag}>{qualityFlagLabel(flag)}</li>
-                  ))}
-                </ul>
-                <p className="mt-1">Переснимите при ровном свете и с более близкого расстояния.</p>
-              </div>
-            )
-          ) : null}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={onPick}
-          />
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {previousSide ? (
-              <button
-                type="button"
-                onClick={() => setActiveSide(previousSide)}
-                disabled={uploading || finishing}
-                className={secondaryButtonClass}
-              >
-                Назад
-              </button>
-            ) : (
-              <span className="hidden sm:block" />
-            )}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || finishing}
-              className={primaryButtonClass}
-            >
-              {uploading ? "Проверяем…" : photo ? "Переснять" : "Сделать фото"}
-            </button>
-            {nextSide ? (
-              <button
-                type="button"
-                onClick={() => setActiveSide(nextSide)}
-                disabled={!photo || uploading || finishing}
-                className={secondaryButtonClass}
-              >
-                Дальше
-              </button>
-            ) : (
-              <span className="hidden sm:block" />
-            )}
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-            <div>
-              <p className="text-sm text-slate-600">
-                Снято {capturedCount} из {PHOTO_SIDES.length} сторон
-              </p>
-              {retakesCount > 0 ? (
-                <p className="text-xs text-amber-800">
-                  С замечаниями: {retakesCount}. Лучше переснять.
+        <section className={`${cardClass} reveal overflow-hidden`}>
+          <div className="border-b border-white/[0.06] p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-cyan-300/75">
+                  Шаг {sideIndex + 1} из {PHOTO_SIDES.length}
+                  {selectedVehicle ? ` · ${selectedVehicle.plate}` : ""}
                 </p>
+                <h2 className="mt-1.5 text-2xl font-semibold tracking-tight text-white">
+                  {sideLabels[activeSide]}
+                </h2>
+                <p className="mt-1 max-w-lg text-sm leading-relaxed text-slate-400">
+                  {sideHints[activeSide]}
+                </p>
+              </div>
+              <Link href="/vehicles" className={`${secondaryButtonClass} shrink-0`}>
+                К машинам
+              </Link>
+            </div>
+
+            <div className="stepper mt-5">
+              {PHOTO_SIDES.map((side) => {
+                const captured = Boolean(photos[side]);
+                const state = side === activeSide ? "active" : captured ? "done" : "todo";
+                return (
+                  <div key={side} className="stepper-step" data-state={state}>
+                    <span className="stepper-dot" aria-hidden="true">
+                      {captured && side !== activeSide ? (
+                        <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3">
+                          <path
+                            d="m5 12.5 4.2 4.2L19 6.8"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      ) : (
+                        PHOTO_SIDES.indexOf(side) + 1
+                      )}
+                    </span>
+                    <span className="min-w-0">{sideLabels[side]}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="progress mt-4">
+              <span style={{ width: `${(capturedCount / PHOTO_SIDES.length) * 100}%` }} />
+            </div>
+          </div>
+
+          <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(250px,0.75fr)]">
+            <div className="space-y-3">
+              <nav aria-label="Стороны осмотра" className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:hidden">
+                {PHOTO_SIDES.map(renderSideChip)}
+              </nav>
+
+              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-white/10 bg-[#04070f]">
+                {photo ? (
+                  <div
+                    role="img"
+                    aria-label={`Фото машины: ${sideLabels[activeSide].toLowerCase()}`}
+                    className="photo-image absolute inset-0 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${photo.previewUrl})` }}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
+                    <span className="grid h-14 w-14 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] text-cyan-200">
+                      <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" aria-hidden="true">
+                        <path
+                          d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2L10 4h4l1.5 2h2A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinejoin="round"
+                        />
+                        <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" strokeWidth="1.5" />
+                      </svg>
+                    </span>
+                    <p className="mt-4 text-sm font-medium text-slate-200">
+                      Впишите машину в рамку целиком
+                    </p>
+                    <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
+                      Свет должен падать на кузов, а не в камеру. Держите телефон ровно.
+                    </p>
+                  </div>
+                )}
+
+                <span className="pointer-events-none absolute left-3 top-3 h-7 w-7 rounded-tl-lg border-l-2 border-t-2 border-cyan-100/60" />
+                <span className="pointer-events-none absolute right-3 top-3 h-7 w-7 rounded-tr-lg border-r-2 border-t-2 border-cyan-100/60" />
+                <span className="pointer-events-none absolute bottom-3 left-3 h-7 w-7 rounded-bl-lg border-b-2 border-l-2 border-cyan-100/60" />
+                <span className="pointer-events-none absolute bottom-3 right-3 h-7 w-7 rounded-br-lg border-b-2 border-r-2 border-cyan-100/60" />
+
+                {photo ? (
+                  <span
+                    className={`pill absolute bottom-3 left-1/2 -translate-x-1/2 ${
+                      photo.quality.ok ? "tone-emerald" : "tone-amber"
+                    }`}
+                  >
+                    {photo.quality.ok ? "Качество в порядке" : "Есть замечания"}
+                  </span>
+                ) : null}
+
+                {uploading ? (
+                  <div
+                    role="status"
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#04070f]/70 text-sm font-medium text-white backdrop-blur-[2px]"
+                  >
+                    <span className="loader-ring" aria-hidden="true" />
+                    Проверяем кадр…
+                    <span className="scan-line" aria-hidden="true" />
+                  </div>
+                ) : null}
+              </div>
+
+              {photo ? (
+                photo.quality.ok ? (
+                  <div role="status" className="callout callout-success">
+                    <span className="flex items-center gap-2 font-medium">
+                      <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                        <path
+                          d="m5 12.5 4.2 4.2L19 6.8"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      Кадр принят
+                    </span>
+                    <p className="mt-1 opacity-85">Переходите к следующей стороне.</p>
+                  </div>
+                ) : (
+                  <div role="alert" className="callout callout-warning">
+                    <p className="font-medium">Фото может не подойти:</p>
+                    <ul className="mt-1 list-inside list-disc space-y-0.5 opacity-90">
+                      {photo.quality.flags.map((flag) => (
+                        <li key={flag}>{qualityFlagLabel(flag)}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 opacity-80">
+                      Переснимите при ровном свете и с более близкого расстояния.
+                    </p>
+                  </div>
+                )
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => void onFinish()}
-              disabled={!canFinish}
-              className={`${primaryButtonClass} w-full sm:w-auto`}
-            >
-              {finishing ? "Отправляем…" : "Завершить осмотр"}
-            </button>
+
+            <div className="space-y-3">
+              <nav
+                aria-label="Стороны осмотра"
+                className="hidden grid-cols-2 gap-2 lg:grid"
+              >
+                {PHOTO_SIDES.map(renderSideChip)}
+              </nav>
+
+              <div className="panel-soft p-4">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Прогресс
+                  </p>
+                  <p className="text-sm font-semibold text-white">
+                    {capturedCount} / {PHOTO_SIDES.length}
+                  </p>
+                </div>
+                <div className="mt-2 flex gap-1.5">
+                  {PHOTO_SIDES.map((side) => (
+                    <span
+                      key={side}
+                      className={`h-1.5 flex-1 rounded-full ${
+                        photos[side]
+                          ? photos[side]?.quality.ok
+                            ? "bg-emerald-400/80"
+                            : "bg-amber-400/80"
+                          : "bg-white/10"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="mt-2.5 text-[0.72rem] leading-relaxed text-slate-500">
+                  {retakesCount > 0
+                    ? `С замечаниями: ${retakesCount}. Лучше переснять до завершения.`
+                    : capturedCount === PHOTO_SIDES.length
+                      ? "Все стороны сняты. Можно завершать осмотр."
+                      : `Осталось сторон: ${PHOTO_SIDES.length - capturedCount}.`}
+                </p>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={onPick}
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || finishing}
+                className={`${primaryButtonClass} w-full`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                  <path
+                    d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2L10 4h4l1.5 2h2A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+                {uploading ? "Проверяем…" : photo ? "Переснять" : "Сделать фото"}
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => previousSide && setActiveSide(previousSide)}
+                  disabled={!previousSide || uploading || finishing}
+                  className={secondaryButtonClass}
+                >
+                  ← Назад
+                </button>
+                <button
+                  type="button"
+                  onClick={() => nextSide && setActiveSide(nextSide)}
+                  disabled={!nextSide || !photo || uploading || finishing}
+                  className={secondaryButtonClass}
+                >
+                  Дальше →
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void onFinish()}
+                disabled={!canFinish}
+                className={`${primaryButtonClass} w-full`}
+              >
+                {finishing ? "Отправляем…" : "Завершить осмотр"}
+              </button>
+            </div>
           </div>
         </section>
       </main>

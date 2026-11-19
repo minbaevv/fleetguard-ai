@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { InspectionDetails } from "@/components/InspectionDetails";
+import { LoadingScreen } from "@/components/LoadingScreen";
 
 interface InspectionPageProps {
   params: Promise<{ id: string }>;
@@ -13,13 +14,7 @@ async function InspectionContent({ params }: InspectionPageProps) {
 
 export default function InspectionPage(props: InspectionPageProps) {
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-screen items-center justify-center text-slate-500" role="status">
-          Загрузка…
-        </main>
-      }
-    >
+    <Suspense fallback={<LoadingScreen label="Загружаем осмотр…" />}>
       <InspectionContent {...props} />
     </Suspense>
   );

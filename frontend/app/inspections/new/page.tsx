@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { CaptureWizard } from "@/components/CaptureWizard";
+import { LoadingScreen } from "@/components/LoadingScreen";
 
 interface NewInspectionPageProps {
   searchParams: Promise<{ vehicleId?: string | string[] }>;
@@ -14,13 +15,7 @@ async function NewInspectionContent({ searchParams }: NewInspectionPageProps) {
 
 export default function NewInspectionPage(props: NewInspectionPageProps) {
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-screen items-center justify-center text-slate-500" role="status">
-          Загрузка…
-        </main>
-      }
-    >
+    <Suspense fallback={<LoadingScreen label="Готовим мастер съёмки…" />}>
       <NewInspectionContent {...props} />
     </Suspense>
   );

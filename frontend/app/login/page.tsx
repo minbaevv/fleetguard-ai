@@ -36,12 +36,12 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Вход"
+      title="Вход в кабинет"
       subtitle="Войдите, чтобы видеть машины и осмотры своей организации."
       footer={
         <>
           Нет аккаунта?{" "}
-          <Link className="font-medium text-indigo-600 hover:text-indigo-700" href="/register">
+          <Link className="auth-link" href="/register">
             Зарегистрировать организацию
           </Link>
         </>
@@ -52,6 +52,7 @@ export default function LoginPage() {
           label="Email"
           type="email"
           autoComplete="email"
+          placeholder="manager@fleet.kz"
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -60,17 +61,39 @@ export default function LoginPage() {
           label="Пароль"
           type="password"
           autoComplete="current-password"
+          placeholder="••••••••"
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
         {error ? (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="callout callout-danger">
             {error}
           </p>
         ) : null}
         <button type="submit" disabled={pending} className={`${primaryButtonClass} w-full`}>
-          {pending ? "Входим…" : "Войти"}
+          {pending ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
+              />
+              Входим…
+            </>
+          ) : (
+            <>
+              Войти
+              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                <path
+                  d="M5 12h13M13 6l6 6-6 6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </>
+          )}
         </button>
       </form>
     </AuthShell>

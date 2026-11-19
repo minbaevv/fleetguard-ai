@@ -10,10 +10,10 @@ export function TextField({ label, ...inputProps }: TextFieldProps) {
   const id = useId();
 
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+    <div>
+      <label htmlFor={id} className="field-label">
         {label}
-        {inputProps.required ? <span className="text-red-600"> *</span> : null}
+        {inputProps.required ? <span className="text-rose-400"> *</span> : null}
       </label>
       <input id={id} {...inputProps} className={inputClass} />
     </div>

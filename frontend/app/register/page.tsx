@@ -48,7 +48,7 @@ export default function RegisterPage() {
       footer={
         <>
           Уже есть аккаунт?{" "}
-          <Link className="font-medium text-indigo-600 hover:text-indigo-700" href="/login">
+          <Link className="auth-link" href="/login">
             Войти
           </Link>
         </>
@@ -60,6 +60,7 @@ export default function RegisterPage() {
           required
           minLength={2}
           maxLength={200}
+          placeholder="Таксопарк «Бишкек»"
           value={organizationName}
           onChange={(event) => setOrganizationName(event.target.value)}
         />
@@ -69,6 +70,7 @@ export default function RegisterPage() {
           minLength={2}
           maxLength={200}
           autoComplete="name"
+          placeholder="Айбек Осмонов"
           value={name}
           onChange={(event) => setName(event.target.value)}
         />
@@ -77,6 +79,7 @@ export default function RegisterPage() {
           type="email"
           required
           autoComplete="email"
+          placeholder="manager@fleet.kz"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
         />
@@ -86,16 +89,27 @@ export default function RegisterPage() {
           required
           minLength={8}
           autoComplete="new-password"
+          placeholder="Минимум 8 символов"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
         {error ? (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="callout callout-danger">
             {error}
           </p>
         ) : null}
         <button type="submit" disabled={pending} className={`${primaryButtonClass} w-full`}>
-          {pending ? "Создаём…" : "Создать организацию"}
+          {pending ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
+              />
+              Создаём…
+            </>
+          ) : (
+            "Создать организацию"
+          )}
         </button>
       </form>
     </AuthShell>
