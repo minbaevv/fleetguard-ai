@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
@@ -255,18 +256,25 @@ export default function VehiclesPage() {
                       <td className="px-4 py-3 text-slate-700">{vehicle.model}</td>
                       <td className="px-4 py-3 text-slate-500">{vehicle.year ?? "—"}</td>
                       <td className="px-4 py-3 text-right sm:px-6">
-                        {canManage ? (
-                          <button
-                            type="button"
-                            onClick={() => void onDelete(vehicle)}
-                            className="text-sm font-medium text-red-600 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
-                            aria-label={`Удалить машину ${vehicle.plate}`}
+                        <div className="flex items-center justify-end gap-4">
+                          <Link
+                            href={`/inspections/new?vehicleId=${vehicle.id}`}
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                            aria-label={`Начать осмотр машины ${vehicle.plate}`}
                           >
-                            Удалить
-                          </button>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
+                            Осмотр
+                          </Link>
+                          {canManage ? (
+                            <button
+                              type="button"
+                              onClick={() => void onDelete(vehicle)}
+                              className="text-sm font-medium text-red-600 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                              aria-label={`Удалить машину ${vehicle.plate}`}
+                            >
+                              Удалить
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))

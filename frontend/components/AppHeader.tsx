@@ -6,9 +6,10 @@ interface AppHeaderProps {
   auth: AuthResponse;
   onLogout: () => void;
   loggingOut: boolean;
+  title?: string;
 }
 
-export function AppHeader({ auth, onLogout, loggingOut }: AppHeaderProps) {
+export function AppHeader({ auth, onLogout, loggingOut, title = "Машины" }: AppHeaderProps) {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
@@ -16,7 +17,7 @@ export function AppHeader({ auth, onLogout, loggingOut }: AppHeaderProps) {
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
             FleetGuard AI
           </p>
-          <h1 className="text-xl font-semibold text-slate-900">Машины</h1>
+          <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
