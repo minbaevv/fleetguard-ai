@@ -2,6 +2,7 @@
 line-length = 100
 target-version = "py312"
 src = ["training", "tests"]
+extend-exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "S"]
