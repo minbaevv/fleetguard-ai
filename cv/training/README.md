@@ -89,7 +89,8 @@ python cv/training/train.py --data datasets/car-damage-yolo
 Ноутбук клонирует репозиторий, скачивает CarDD (4000 изображений) и Carvengers (17293 изображения,
 боксы), собирает разметку, готовит YOLO-seg датасет, домешивает Carvengers с oversampling `crack`,
 проверяет датасет, обучает и складывает `metrics.md`, `metrics.json`, `best.pt` на Drive в
-`fleetguard-cv/runs/yolo11n-seg-cardd-carvengers`.
+`fleetguard-cv/runs/yolo11n-seg-cardd-carvengers`. Перед обучением он оценивает baseline `best.pt`
+на том же merged val, поэтому сравнение до/после идёт на одной выборке.
 
 Вручную те же шаги:
 
