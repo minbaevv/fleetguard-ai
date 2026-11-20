@@ -74,7 +74,7 @@ python cv/training/train.py --data datasets/car-damage-yolo
 ### Обучение в Google Colab
 
 Готовый ноутбук: `cv/training/cardd_colab.ipynb`. Полный цикл на бесплатном T4: скачивание ~4 ГБ,
-подготовка 10–20 минут, обучение 100 эпох с early stopping — 1–3 часа. Локальный GPU не нужен.
+подготовка 15–25 минут, обучение 100 эпох с early stopping — 2–4 часа. Локальный GPU не нужен.
 
 Прямая ссылка:
 <https://colab.research.google.com/github/minbaevv/fleetguard-ai/blob/master/cv/training/cardd_colab.ipynb>
@@ -82,11 +82,14 @@ python cv/training/train.py --data datasets/car-damage-yolo
 1. Открыть `cardd_colab.ipynb` в Colab по ссылке выше либо через
    `File → Open notebook → GitHub` → `minbaevv/fleetguard-ai`.
 2. `Среда выполнения → Сменить среду выполнения → T4 GPU`.
-3. `Среда выполнения → Выполнить все`, разрешить доступ к Google Drive.
+3. Получить бесплатный ключ Roboflow: `universe.roboflow.com` → войти → `Settings` → `API Keys`.
+4. `Среда выполнения → Выполнить все`, вставить ключ Roboflow в появившееся поле, разрешить доступ
+   к Google Drive.
 
-Ноутбук клонирует репозиторий, скачивает CarDD, собирает разметку из трёх COCO-файлов, готовит
-YOLO-seg датасет, проверяет его, обучает и складывает `metrics.md`, `metrics.json`, `best.pt` на
-Drive в `fleetguard-cv/runs/yolo11n-seg-cardd`.
+Ноутбук клонирует репозиторий, скачивает CarDD (4000 изображений) и Carvengers (17293 изображения,
+боксы), собирает разметку, готовит YOLO-seg датасет, домешивает Carvengers с oversampling `crack`,
+проверяет датасет, обучает и складывает `metrics.md`, `metrics.json`, `best.pt` на Drive в
+`fleetguard-cv/runs/yolo11n-seg-cardd-carvengers`.
 
 Вручную те же шаги:
 
@@ -180,6 +183,59 @@ print(len(list(flat.glob("*.jpg"))), "images")
 0.58. Причина — тонкие объекты и мало примеров `crack` в CarDD. Следующий шаг: домешивание внешнего
 датасета и oversampling `crack`.
 
+### Улучшение мелких классов: Carvengers
+
+Второй источник —
+[carvengers-damage-detection](https://universe.roboflow.com/carvengers/carvengers-damage-detection)
+(17293 изображения, версия 1, экспорт YOLOv8, лицензия **CC BY 4.0**, автор Carvengers). Это
+**object detection**: боксы переводятся в прямоугольные полигоны, поэтому маски для этих
+изображений грубее полигональных масок CarDD.
+
+Скачать датасет можно только с бесплатным ключом Roboflow (`Settings → API Keys`):
+
+```python
+from roboflow import Roboflow
+
+project = Roboflow(api_key="...").workspace("carvengers").project("carvengers-damage-detection")
+project.version(1).download("yolov8", location="datasets/carvengers")
+```
+
+Слияние с подготовленным CarDD (путь к каталогу, где лежит `data.yaml`):
+
+```bash
+python cv/training/merge_yolo_datasets.py \
+  --base datasets/cardd-yolo \
+  --extra datasets/carvengers \
+  --out datasets/cardd-carvengers-yolo \
+  --oversample-class crack \
+  --oversample-factor 2
+python cv/training/train.py --data datasets/cardd-carvengers-yolo --dry-run
+python cv/training/train.py \
+  --data datasets/cardd-carvengers-yolo \
+  --device 0 \
+  --project /content/drive/MyDrive/fleetguard-cv/runs \
+  --name yolo11n-seg-cardd-carvengers
+```
+
+Скрипт:
+
+- приводит классы к `dent, scratch, crack, glass_shatter, lamp_broken, tire_flat` по именам и
+  алиасам (`glass-shatter`, `Glass Shatter`, `flat tyre` и т. п.);
+- конвертирует `class cx cy w h` в 4-точечный полигон и обрезает координаты в `0..1`;
+- сохраняет сплиты источников: CarDD — 70/15/15 (seed 42), Carvengers — train/valid/test из экспорта;
+- удаляет точные дубликаты по sha256 с приоритетом val/test, чтобы не завышать метрики;
+- дублирует изображения с `crack` только в train (`--oversample-factor 2`), val/test не меняются;
+- пишет `merge_report.json`: счётчики по классам, неизвестные классы, дубликаты, число копий.
+
+Повторный прогон — с `--force`. Неизвестные классы и битые метки не роняют процесс; `--strict`
+делает их ошибкой.
+
+**Статус:** код и ноутбук готовы, обучение на объединённом датасете ещё не выполнено. Метрики
+появятся здесь только после реального прогона `model.val()`.
+
+Лицензии: CarDD — исследовательская/некоммерческая (для коммерческого использования нужно разрешение
+авторов); Carvengers — CC BY 4.0, требуется указание авторства Carvengers / Roboflow Universe.
+
 ### Статус Д2
 
 Выполнен: обучение прошло на публичном зеркале CarDD (`shawnmichael/CarDD`, 4000 изображений), метрики
@@ -193,3 +249,5 @@ print(len(list(flat.glob("*.jpg"))), "images")
 - Разбиение train / val / test = 70 / 15 / 15; test не используется для подбора порогов.
 - Перед публикацией проверьте лицензию датасета: открытые наборы повреждений часто разрешены
   только для исследований.
+- При использовании двух источников указывайте оба и их лицензии: CarDD — исследовательская,
+  Carvengers — CC BY 4.0 (автор Carvengers / Roboflow Universe).
