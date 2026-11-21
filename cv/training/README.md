@@ -84,7 +84,7 @@ python cv/training/train.py --data datasets/car-damage-yolo
 ### Обучение в Kaggle (рекомендуется для merged-датасета)
 
 Готовый ноутбук: `cv/training/cardd_kaggle.ipynb`. Kaggle даёт 30 GPU-часов в неделю и сессию до
-12 часов, поэтому 100 эпох закрываются за один прогон, а не за два.
+12 часов, поэтому 100 эпох реально закрываются за один прогон, а не обрываются на 95-й.
 
 1. Создать новый Notebook и загрузить `cardd_kaggle.ipynb` (`File → Import Notebook`).
 2. `Settings → Accelerator → GPU T4 x2` (одна T4 тоже работает, но 100 эпох не успеют).
@@ -94,8 +94,9 @@ python cv/training/train.py --data datasets/car-damage-yolo
 
 Ноутбук делает то же, что Colab-версия, плюс:
 
-- `USE_BOTH_GPUS = True` включает DDP на двух T4, эффективный batch остаётся 16, поэтому метрики
-  сравнимы с прогоном на одной карте;
+- `USE_BOTH_GPUS = True` включает DDP на двух T4. `batch` остаётся 16, а Ultralytics делит его
+  между GPU (`batch_size = batch // world_size`), поэтому эффективный батч совпадает с прогоном на
+  одной карте и метрики сравнимы;
 - прогресс печатается каждые 30 секунд из `results.csv` — под DDP колбэки родительского процесса
   не срабатывают, а файл пишется всегда;
 - `TIME_BUDGET_H` (по умолчанию 10 ч) останавливает обучение до лимита сессии через `SIGINT` всей
