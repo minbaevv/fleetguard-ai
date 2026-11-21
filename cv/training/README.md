@@ -92,6 +92,13 @@ python cv/training/train.py --data datasets/car-damage-yolo
 `fleetguard-cv/runs/yolo11n-seg-cardd-carvengers`. Перед обучением он оценивает baseline `best.pt`
 на том же merged val, поэтому сравнение до/после идёт на одной выборке.
 
+Если Colab пишет «Блокнот не найден»:
+
+- Colab забирает файл через GitHub API, а анонимный лимит — 60 запросов в час на IP. Нажмите
+  «Запросить авторизацию в GitHub» либо скачайте файл и загрузите через `File → Upload notebook`.
+- Кнопка `Download raw file` на странице GitHub сохраняет имя `cardd_colab.ipynb`; прямая raw-ссылка
+  может сохраниться как `.ipynb.txt` — переименуйте файл перед загрузкой.
+
 Вручную те же шаги:
 
 ```bash
