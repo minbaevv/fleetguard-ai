@@ -185,3 +185,17 @@ def test_missing_label_becomes_empty_negative(tmp_path: Path) -> None:
     assert label.is_file()
     assert label.read_text(encoding="utf-8") == ""
     assert report(tmp_path / "out")["totals"]["annotations"] == 3
+
+
+def test_class_map_overrides_alias_and_targets_project_class(tmp_path: Path) -> None:
+    base = make_base(tmp_path / "base")
+    extra = make_detection_source(tmp_path / "extra", ["crack", "paint"])
+    add_extra_image(extra, "train", "paint.jpg", "1 0.5 0.5 0.3 0.2")
+    class_map = tmp_path / "class-map.json"
+    class_map.write_text(json.dumps({"paint": "scratch"}), encoding="utf-8")
+
+    assert run(base, [extra], tmp_path / "out", "--class-map", str(class_map)) == 0
+
+    line = read_label(tmp_path / "out", "train", "extra__paint")[0]
+    assert line.split()[0] == str(CLASS_INDEX["scratch"])
+    assert report(tmp_path / "out")["sources"][1]["mapped_classes"]["1"] == "scratch"
