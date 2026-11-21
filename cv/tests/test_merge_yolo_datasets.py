@@ -199,3 +199,14 @@ def test_class_map_overrides_alias_and_targets_project_class(tmp_path: Path) -> 
     line = read_label(tmp_path / "out", "train", "extra__paint")[0]
     assert line.split()[0] == str(CLASS_INDEX["scratch"])
     assert report(tmp_path / "out")["sources"][1]["mapped_classes"]["1"] == "scratch"
+
+
+def test_non_empty_output_requires_force(tmp_path: Path) -> None:
+    base = make_base(tmp_path / "base")
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "keep.txt").write_text("keep", encoding="utf-8")
+
+    assert merge_yolo_datasets.main(["--base", str(base), "--out", str(out)]) == 2
+    assert (out / "keep.txt").read_text(encoding="utf-8") == "keep"
+    assert not (out / "dataset.yaml").exists()
