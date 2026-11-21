@@ -639,6 +639,59 @@ def completed_epochs(run_dir: Path) -> int | None:
     return max(len(rows) - 1, 0)
 
 
+def read_progress(run_dir: Path, total: int) -> dict[str, Any] | None:
+    """Read the last finished epoch from results.csv.
+
+    Needed because DDP runs training in child processes where callbacks registered on
+    the parent model never fire; the CSV is written in every mode.
+    """
+    csv_path = run_dir / "results.csv"
+    if not csv_path.is_file():
+        return None
+    rows = [line for line in csv_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if len(rows) < 2:
+        return None
+
+    header = [cell.strip() for cell in rows[0].split(",")]
+    record = dict(zip(header, rows[-1].split(","), strict=False))
+    done = len(rows) - 1
+    elapsed = _number(record.get("time"))
+    per_epoch = elapsed / done if elapsed and done else None
+    return {
+        "epoch": done,
+        "total": total,
+        "per_epoch": per_epoch,
+        "eta": per_epoch * max(total - done, 0) if per_epoch is not None else None,
+        "mask_map50_95": _number(record.get("metrics/mAP50-95(M)")),
+        "box_map50_95": _number(record.get("metrics/mAP50-95(B)")),
+    }
+
+
+def format_progress(progress: Mapping[str, Any]) -> str:
+    epoch = progress["epoch"]
+    total = progress["total"]
+    parts = [f"epoch {epoch}/{total} ({epoch * 100 // max(total, 1)}%)"]
+    if progress.get("per_epoch") is not None:
+        parts.append(f"{format_duration(progress['per_epoch'])}/epoch")
+    if progress.get("eta") is not None:
+        parts.append(f"ETA {format_duration(progress['eta'])}")
+    if progress.get("box_map50_95") is not None:
+        parts.append(f"box mAP50-95 {progress['box_map50_95']:.4f}")
+    if progress.get("mask_map50_95") is not None:
+        parts.append(f"mask mAP50-95 {progress['mask_map50_95']:.4f}")
+    return " | ".join(parts)
+
+
+def requested_gpus(device: str | None) -> int:
+    """How many GPUs a device string asks for; 0 for cpu/mps/auto."""
+    if not device:
+        return 0
+    value = device.strip().lower()
+    if value in {"cpu", "mps"}:
+        return 0
+    return len([part for part in value.split(",") if part.strip()])
+
+
 def run_training(
     config: TrainConfig,
     data: Path,
@@ -681,10 +734,17 @@ def run_training(
         f"training: model={weights or config.model} epochs={config.epochs} data={summary.yaml_path}"
     )
     if config.time_hours:
-        print(
-            f"time budget: {config.time_hours:g} h; "
-            "the run stops after the epoch in progress and evaluates best.pt"
-        )
+        if requested_gpus(config.device) > 1:
+            print(
+                f"time budget: {config.time_hours:g} h — не применяется под DDP "
+                "(Ultralytics не передаёт колбэки в дочерние процессы); "
+                "остановите прогон извне по results.csv"
+            )
+        else:
+            print(
+                f"time budget: {config.time_hours:g} h; "
+                "прогон остановится после текущей эпохи и оценит best.pt"
+            )
     model.train(**plan)
 
     best = best_weights(model)

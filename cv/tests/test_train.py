@@ -320,6 +320,61 @@ def test_report_marks_incomplete_run(tmp_path: Path) -> None:
     assert "закрыто эпох: 2 из 100" in table
 
 
+def test_requested_gpus_parses_device_strings() -> None:
+    assert train.requested_gpus(None) == 0
+    assert train.requested_gpus("cpu") == 0
+    assert train.requested_gpus("mps") == 0
+    assert train.requested_gpus("0") == 1
+    assert train.requested_gpus("0,1") == 2
+
+
+def test_read_progress_parses_results_csv(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "results.csv").write_text(
+        "epoch,time,metrics/mAP50-95(B),metrics/mAP50-95(M)\n0,420,0.40,0.38\n1,840,0.44,0.41\n",
+        encoding="utf-8",
+    )
+
+    progress = train.read_progress(run_dir, total=100)
+
+    assert progress is not None
+    assert progress["epoch"] == 2
+    assert progress["per_epoch"] == pytest.approx(420.0)
+    assert progress["eta"] == pytest.approx(420.0 * 98)
+    assert progress["mask_map50_95"] == pytest.approx(0.41)
+
+    line = train.format_progress(progress)
+    assert line.startswith("epoch 2/100 (2%)")
+    assert "7m00s/epoch" in line
+    assert "ETA 11h26m" in line
+    assert "mask mAP50-95 0.4100" in line
+
+
+def test_read_progress_returns_none_without_rows(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+
+    assert train.read_progress(run_dir, total=100) is None
+
+    (run_dir / "results.csv").write_text("epoch,time\n", encoding="utf-8")
+    assert train.read_progress(run_dir, total=100) is None
+
+
+def test_run_training_warns_time_budget_is_inert_under_ddp(tmp_path: Path, capsys: Any) -> None:
+    root = build_dataset(tmp_path)
+    model = FakeModel()
+    config = train.TrainConfig(
+        epochs=5, project=tmp_path / "runs", name="ddp", device="0,1", time_hours=10
+    )
+
+    train.run_training(config, root, model_factory=lambda name: model)
+
+    output = capsys.readouterr().out
+    assert "не применяется под DDP" in output
+    assert model.train_calls[0]["device"] == "0,1"
+
+
 def test_run_training_resumes_from_last_weights(tmp_path: Path) -> None:
     root = build_dataset(tmp_path)
     last = tmp_path / "runs" / "resumed" / "weights" / "last.pt"
