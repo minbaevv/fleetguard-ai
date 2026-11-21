@@ -37,6 +37,7 @@ SPLIT_ALIASES = {"train": ("train",), "val": ("valid", "val"), "test": ("test",)
 IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"})
 MIN_POLYGON_AREA = 1e-6
 ORIGIN_PREFERENCE = {"base": 0}
+MAX_DROP_EXAMPLES = 20
 SPLIT_PREFERENCE = {"test": 0, "val": 1, "train": 2}
 
 
@@ -134,8 +135,16 @@ def parse_label(
     stats: Counter[str],
     problems: list[str],
     used_unknown: set[int],
-) -> list[str]:
+) -> tuple[list[str], int]:
+    """Convert one label file into project polygons.
+
+    Returns the kept lines and how many annotations were dropped. The drop count
+    matters: an image whose every annotation was dropped is not a negative, it is
+    an image whose classes do not map, and training on it as background teaches
+    the model that damage is absent.
+    """
     lines: list[str] = []
+    dropped = 0
     for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         tokens = raw.split()
         if not tokens:
@@ -144,19 +153,23 @@ def parse_label(
             class_id = int(tokens[0])
         except ValueError:
             problems.append(f"{path.name}:{number}: class id is not an integer")
+            dropped += 1
             continue
         target = mapping.get(class_id)
         if target is None:
             stats["unknown_class"] += 1
             used_unknown.add(class_id)
+            dropped += 1
             continue
         try:
             values = [float(token) for token in tokens[1:]]
         except ValueError:
             problems.append(f"{path.name}:{number}: coordinate is not a number")
+            dropped += 1
             continue
         if not all(math.isfinite(value) for value in values):
             problems.append(f"{path.name}:{number}: coordinate is not finite")
+            dropped += 1
             continue
         if len(values) == 4:
             polygon = bbox_to_polygon(values)
@@ -164,13 +177,15 @@ def parse_label(
             polygon = clamp_pairs(values)
         else:
             problems.append(f"{path.name}:{number}: expected bbox or polygon")
+            dropped += 1
             continue
         if polygon is None or polygon_area(polygon) < MIN_POLYGON_AREA:
             stats["degenerate"] += 1
+            dropped += 1
             continue
         coordinates = " ".join(f"{value:.6f}" for value in polygon)
         lines.append(f"{target} {coordinates}")
-    return lines
+    return lines, dropped
 
 
 def validate_image(path: Path) -> str | None:
@@ -207,11 +222,23 @@ def collect_source(
             if not image.is_file() or image.suffix.lower() not in IMAGE_SUFFIXES:
                 continue
             label = labels_dir / image.relative_to(images_dir).with_suffix(".txt")
+            stats["images_seen"] += 1
             if label.is_file():
                 try:
-                    lines = parse_label(label, mapping, stats, problems, used_unknown)
+                    lines, dropped = parse_label(label, mapping, stats, problems, used_unknown)
                 except (OSError, UnicodeDecodeError) as error:
                     problems.append(f"{label}: {error}")
+                    continue
+                if dropped and not lines:
+                    # Every annotation in this file was dropped, so the image has no
+                    # usable ground truth. Writing it as an empty label would turn it
+                    # into a negative and teach the model that damage is absent.
+                    stats["all_annotations_dropped"] += 1
+                    if stats["all_annotations_dropped"] <= MAX_DROP_EXAMPLES:
+                        problems.append(
+                            f"{label.name}: all {dropped} annotations dropped "
+                            "(unmapped class or invalid geometry)"
+                        )
                     continue
             else:
                 lines = []
@@ -237,6 +264,9 @@ def collect_source(
                 names[class_id] for class_id in sorted(used_unknown) if class_id in names
             ],
             "images": len(samples),
+            "images_seen": stats["images_seen"],
+            "annotations": sum(len(sample.label_lines) for sample in samples),
+            "all_annotations_dropped": stats["all_annotations_dropped"],
             "labels": dict(sorted(stats.items())),
             "problems": problems,
         }
@@ -397,6 +427,7 @@ def merge_datasets(
     class_map_path: Path | None = None,
     oversample_class: str | None = None,
     oversample_factor: int = 2,
+    allow_unannotated_source: bool = False,
 ) -> dict[str, Any]:
     overrides = load_class_overrides(class_map_path) if class_map_path else {}
     report: dict[str, Any] = {
@@ -411,7 +442,23 @@ def merge_datasets(
     if not samples:
         raise ValueError(f"{base}: no images found")
     for root in extra:
-        samples.extend(collect_source(root, root.name, overrides, report, check_images=True))
+        extra_samples = collect_source(root, root.name, overrides, report, check_images=True)
+        source = report["sources"][-1]
+        annotated = sum(1 for sample in extra_samples if sample.label_lines)
+        # A source with no label files at all is a legitimate negative set. A source
+        # whose annotations all failed to map is a configuration bug: merging it
+        # silently would train the model to see damage as background.
+        all_dropped = source["all_annotations_dropped"]
+        if source["images_seen"] and not annotated and all_dropped and not allow_unannotated_source:
+            raise ValueError(
+                f"{root}: {source['images_seen']} images but no usable annotations "
+                f"({all_dropped} images had every annotation dropped; "
+                f"unmapped classes: {source['unmapped_classes']}). "
+                "Merging this source would add background-only images and teach the "
+                "model that damage is absent. Pass --class-map to map its classes, "
+                "or --allow-unannotated-source to merge it as negatives on purpose."
+            )
+        samples.extend(extra_samples)
 
     samples = drop_duplicates(samples, report)
 
@@ -455,6 +502,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--strict", action="store_true", help="exit with code 1 when any entry was skipped"
     )
+    parser.add_argument(
+        "--allow-unannotated-source",
+        action="store_true",
+        help="merge a source that produced only background images (not recommended)",
+    )
     return parser.parse_args(argv)
 
 
@@ -469,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
             class_map_path=args.class_map,
             oversample_class=args.oversample_class,
             oversample_factor=args.oversample_factor,
+            allow_unannotated_source=args.allow_unannotated_source,
         )
     except (OSError, ValueError, yaml.YAMLError) as error:
         print(f"error: {error}", file=sys.stderr)

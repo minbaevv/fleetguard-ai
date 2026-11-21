@@ -105,10 +105,15 @@ def test_class_aliases_are_mapped_and_unknown_classes_skipped(tmp_path: Path) ->
     assert run(base, [extra], tmp_path / "out", "--strict") == 1
 
     alias = read_label(tmp_path / "out", "train", "extra__alias")
-    unknown = read_label(tmp_path / "out", "train", "extra__unknown")
     assert alias[0].split()[0] == str(CLASS_INDEX["glass_shatter"])
-    assert unknown == []
-    assert report(tmp_path / "out")["sources"][1]["unknown_classes"] == ["rust"]
+    # The image whose only annotation is an unmapped class must not be written at
+    # all: an empty label would make it a negative and teach the model that a
+    # damaged car has no damage.
+    assert not (tmp_path / "out" / "images" / "train" / "extra__unknown.jpg").exists()
+    assert not (tmp_path / "out" / "labels" / "train" / "extra__unknown.txt").exists()
+    source = report(tmp_path / "out")["sources"][1]
+    assert source["unknown_classes"] == ["rust"]
+    assert source["all_annotations_dropped"] == 1
 
 
 def test_source_splits_are_preserved(tmp_path: Path) -> None:
@@ -199,6 +204,25 @@ def test_class_map_overrides_alias_and_targets_project_class(tmp_path: Path) -> 
     line = read_label(tmp_path / "out", "train", "extra__paint")[0]
     assert line.split()[0] == str(CLASS_INDEX["scratch"])
     assert report(tmp_path / "out")["sources"][1]["mapped_classes"]["1"] == "scratch"
+
+
+def test_source_with_all_annotations_dropped_is_rejected(tmp_path: Path) -> None:
+    base = make_base(tmp_path / "base")
+    extra = make_detection_source(tmp_path / "extra", ["rust", "paint"])
+    add_extra_image(extra, "train", "rust.jpg", "0 0.5 0.5 0.4 0.4")
+    add_extra_image(extra, "train", "paint.jpg", "1 0.5 0.5 0.3 0.2")
+
+    assert run(base, [extra], tmp_path / "out") == 2
+    assert not (tmp_path / "out" / "dataset.yaml").exists()
+
+
+def test_source_with_no_labels_stays_negative_when_allowed(tmp_path: Path) -> None:
+    base = make_base(tmp_path / "base")
+    extra = make_detection_source(tmp_path / "extra")
+    add_extra_image(extra, "train", "background.jpg", None)
+
+    assert run(base, [extra], tmp_path / "out") == 0
+    assert (tmp_path / "out" / "labels" / "train" / "extra__background.txt").is_file()
 
 
 def test_non_empty_output_requires_force(tmp_path: Path) -> None:
