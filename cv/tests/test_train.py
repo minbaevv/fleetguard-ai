@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 from pathlib import Path
 from typing import Any, ClassVar
@@ -176,6 +177,169 @@ def test_shipped_config_matches_plan() -> None:
     assert config.imgsz == 640
     assert config.project == Path("cv/runs")
     assert config.device is None
+    assert config.time_hours is None
+
+
+def test_config_rejects_invalid_time_budget() -> None:
+    with pytest.raises(ValueError, match="time_hours must be between"):
+        train.parse_config({"time_hours": 0})
+    with pytest.raises(ValueError, match="time_hours must be between"):
+        train.parse_config({"time_hours": 1000})
+
+
+def test_build_train_kwargs_never_sets_time_budget(tmp_path: Path) -> None:
+    config = train.TrainConfig(time_hours=11.5)
+
+    kwargs = train.build_train_kwargs(config, tmp_path / "dataset.yaml")
+
+    # Ultralytics' own `time` rewrites the epoch plan and breaks the LR schedule,
+    # so the budget is enforced by the progress callback instead.
+    assert "time" not in kwargs
+
+
+def test_epoch_progress_stops_at_time_budget() -> None:
+    stream = io.StringIO()
+    clock = iter([0.0, 3600.0, 3600.0])
+    progress = train.EpochProgress(
+        total=100, stream=stream, clock=lambda: next(clock), budget_hours=1.0
+    )
+    trainer = FakeTrainerState(epoch=0, epochs=100, epoch_time=3600.0)
+
+    progress.on_train_start(trainer)
+    progress.on_epoch_end(trainer)
+
+    assert progress.stopped_early is True
+    assert trainer.stop is True
+    assert "time budget 1h spent, stopping" in stream.getvalue()
+
+
+def test_format_duration_keeps_units_readable() -> None:
+    assert train.format_duration(0) == "0s"
+    assert train.format_duration(95) == "1m35s"
+    assert train.format_duration(3 * 3600 + 7 * 60) == "3h07m"
+
+
+class FakeTrainerState:
+    def __init__(self, epoch: int, epochs: int, epoch_time: float) -> None:
+        self.epoch = epoch
+        self.epochs = epochs
+        self.epoch_time = epoch_time
+        self.metrics = {
+            "metrics/mAP50-95(B)": 0.5,
+            "metrics/mAP50-95(M)": 0.45,
+        }
+
+
+def test_epoch_progress_prints_eta_and_metrics() -> None:
+    stream = io.StringIO()
+    clock = iter([0.0, 420.0, 840.0])
+    progress = train.EpochProgress(total=100, stream=stream, clock=lambda: next(clock))
+
+    progress.on_epoch_end(FakeTrainerState(epoch=0, epochs=100, epoch_time=420.0))
+    progress.on_epoch_end(FakeTrainerState(epoch=1, epochs=100, epoch_time=420.0))
+
+    lines = stream.getvalue().splitlines()
+    assert lines[0].startswith("epoch 1/100 (1%)")
+    assert "7m00s/epoch" in lines[0]
+    assert "ETA 11h33m" in lines[0]
+    assert "mask mAP50-95 0.4500" in lines[0]
+    assert lines[1].startswith("epoch 2/100 (2%)")
+    assert "ETA 11h26m" in lines[1]
+
+
+def test_epoch_progress_reports_resume_offset() -> None:
+    stream = io.StringIO()
+    progress = train.EpochProgress(total=100, stream=stream)
+    state = FakeTrainerState(epoch=0, epochs=100, epoch_time=0.0)
+    state.start_epoch = 42
+
+    progress.on_train_start(state)
+
+    assert stream.getvalue().strip() == "resume: continuing at epoch 43/100"
+
+
+def test_resume_dry_run_prints_checkpoint(tmp_path: Path, capsys: Any) -> None:
+    root = build_dataset(tmp_path)
+    last = tmp_path / "runs" / "resumed" / "weights" / "last.pt"
+    last.parent.mkdir(parents=True)
+    last.write_bytes(b"weights")
+
+    code = train.main(
+        [
+            "--data",
+            str(root),
+            "--dry-run",
+            "--resume",
+            "--project",
+            str(tmp_path / "runs"),
+            "--name",
+            "resumed",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert code == 0
+    assert f"resume={last}" in output
+    assert "dry run: nothing trained" in output
+
+
+def test_resume_requires_existing_checkpoint(tmp_path: Path, capsys: Any) -> None:
+    root = build_dataset(tmp_path)
+
+    code = train.main(
+        ["--data", str(root), "--resume", "--project", str(tmp_path / "runs"), "--name", "missing"]
+    )
+
+    assert code == 2
+    assert "resume checkpoint not found" in capsys.readouterr().err
+
+
+def test_completed_epochs_counts_csv_rows(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    assert train.completed_epochs(run_dir) is None
+
+    (run_dir / "results.csv").write_text("epoch,time\n0,10\n1,20\n2,30\n", encoding="utf-8")
+
+    assert train.completed_epochs(run_dir) == 3
+
+
+def test_report_marks_incomplete_run(tmp_path: Path) -> None:
+    root = build_dataset(tmp_path)
+    run_dir = tmp_path / "runs" / "partial"
+    run_dir.mkdir(parents=True)
+    (run_dir / "results.csv").write_text("epoch,time\n0,10\n1,20\n", encoding="utf-8")
+    model = FakeModel()
+    config = train.TrainConfig(epochs=100, project=tmp_path / "runs", name="partial")
+
+    report = train.run_training(config, root, model_factory=lambda name: model)
+
+    assert report["epochs_completed"] == 2
+    assert report["stopped_early"] is True
+    table = (run_dir / "metrics.md").read_text(encoding="utf-8")
+    assert "закрыто эпох: 2 из 100" in table
+
+
+def test_run_training_resumes_from_last_weights(tmp_path: Path) -> None:
+    root = build_dataset(tmp_path)
+    last = tmp_path / "runs" / "resumed" / "weights" / "last.pt"
+    last.parent.mkdir(parents=True)
+    last.write_bytes(b"weights")
+    resumed = FakeModel()
+    loaded: list[str] = []
+
+    def factory(name: str) -> FakeModel:
+        loaded.append(name)
+        return resumed
+
+    config = train.TrainConfig(project=tmp_path / "runs", name="resumed", device="0")
+
+    report = train.run_training(config, root, resume=True, model_factory=factory)
+
+    assert loaded == [str(last)]
+    assert resumed.train_calls[0]["resume"] is True
+    assert resumed.train_calls[0]["device"] == "0"
+    assert report["resumed_from"] == str(last)
 
 
 def test_config_rejects_unknown_key() -> None:

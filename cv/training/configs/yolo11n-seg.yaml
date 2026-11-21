@@ -9,5 +9,7 @@ workers: 4
 optimizer: auto
 # null — Ultralytics выбирает устройство сам; cpu / 0 / 0,1 задаются вручную.
 device: null
+# null — учить все epochs; число — остановиться по времени и оценить best.pt.
+time_hours: null
 project: cv/runs
 name: yolo11n-seg-baseline
